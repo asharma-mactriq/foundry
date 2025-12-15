@@ -1,0 +1,42 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["dom", "dom.iterable", "esnext"],
+
+    // ❗ REMOVE all paths — they come from root
+    "paths": {
+  "@forge/hooks/*": ["../../packages/hooks/src/*"],
+  "@forge/stores/*": ["../../packages/stores/src/*"],
+  "@forge/types/*": ["../../packages/types/src/*"],
+  "@forge/ui/*": ["../../packages/ui/src/*"],
+  "@forge/utils/*": ["../../packages/utils/src/*"],
+  "@forge/lib/*": ["../../packages/lib/src/*"],
+  "@forge/api/*": ["../../packages/api/src/*"]
+},
+    "baseUrl": ".",
+
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+
+    // Allow importing packages/**
+    "../../packages/**/*"
+  ],
+  "exclude": ["node_modules"]
+}

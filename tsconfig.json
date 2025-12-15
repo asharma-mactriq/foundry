@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@forge/stores": ["packages/stores/src/index.ts"],
+      "@forge/stores/*": ["packages/stores/src/*"],
+      "@forge/hooks": ["packages/hooks/src/index.ts"],
+      "@forge/hooks/*": ["packages/hooks/src/*"],
+      "@forge/utils": ["packages/utils/src/index.ts"],
+      "@forge/utils/*": ["packages/utils/src/*"],
+      "@forge/ui/*": ["packages/ui/src/*"],
+      "@forge/lib/*": ["packages/lib/src/*"],
+      "@forge/types/*": ["packages/types/src/*"]
+    }
+  }
+}

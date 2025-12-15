@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model TestEntry {
+  id        Int      @id @default(autoincrement())
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  createdAt DateTime @default(now())
+  components Component[]
+}
+
+model Component {
+  id        String   @id @default(cuid())
+  name      String
+  device    Device   @relation(fields: [deviceId], references: [id])
+  deviceId  String
+  type      String
+  telemetry Telemetry[]
+}
+
+model Telemetry {
+  id          Int       @id @default(autoincrement())
+  component   Component @relation(fields: [componentId], references: [id])
+  componentId String
+  timestamp   DateTime
+  type        String
+  value       Float
+}

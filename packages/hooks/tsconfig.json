@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "paths": {
+      "@forge/stores/*": ["../stores/src/*"],
+      "@forge/stores": ["../stores/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}
