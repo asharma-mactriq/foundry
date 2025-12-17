@@ -18,7 +18,7 @@ app = FastAPI(title="Mactriq Edge Engine")
 # ROOT = os.path.dirname(os.path.abspath(__file__))
 # RULE_PATH = os.path.join(ROOT, "..", "rules", "rule-registry.json")
 
-RULE_PATH = "/Users/apple/Desktop/foundry/apps/edge-hub/app/rules/rule-registry.json"
+RULE_PATH = "/home/smart/edge/foundry/apps/edge-hub/app/rules/rule-registry.json"
 
 def _log(msg: str):
     print(f"[MAIN] {msg}")

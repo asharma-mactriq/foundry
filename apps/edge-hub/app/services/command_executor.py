@@ -61,22 +61,51 @@ class CommandExecutor:
         ms = machine_state_manager.state
         ps = program_state
         modes = mode_manager.get()
+        
+        def block(reason):
+        	
+        	# 1. Printing to console
+        	
+        	print(f"\n[GUARD BLOCKED]")
+        	print(f"  cmd	: {name}")
+        	print(f"  reason	: {reason}")
+        	print(f"  phase	: {ms.phase}")
+        	print(f"  pressure	: {ms.pressure}")
+        	print(f"  program	: running={ps.running}")
+        	print(f"  fault	: {modes['fault']}\n")
+        	
+        	# 2. Publish to mosquitto MQTT
+        	
+        	if self.client:
+        		payload = {
+        		    "cmd": name,
+        		    "reason": reason,
+        		    "phase" : str(ms.phase),
+        		    "pressure" : ms.pressure,
+        		    "program_running" : ps.running,
+        		    "fault" : modes['fault'] # Add fault to json for consistency
+        		}
+        		
+        		self.client.publish("edge/guards", json.dumps(payload))
+        	
+        	return False
 
         # -------- GLOBAL SAFETY --------
         if modes["fault"] != FaultMode.none:
-            print(f"[GUARD] Blocked {name}: fault={modes['fault']}")
-            return False
+            # print(f"[GUARD] Blocked {name}: fault={modes['fault']}")
+            return block(f"fault={modes['fault']}")
 
         if not ps.running:
-            print(f"[GUARD] Blocked {name}: program not running")
-            return False
+            # print(f"[GUARD] Blocked {name}: program not running")
+            return block("program not running")
 
         # -------- DISPENSE-SPECIFIC --------
         if name.startswith("dispense"):
             if ms.phase != MachinePhase.REST_DISPENSE_EDGE:
-                print(f"[GUARD] Blocked {name}: phase={ms.phase}")
-                return False
+                # print(f"[GUARD] Blocked {name}: phase={ms.phase}")
+                return block(f"invalid phase {ms.phase}")
 
+        print(f"[GUARD ALLOWED] {name}")
         return True
 
 
