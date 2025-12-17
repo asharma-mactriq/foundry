@@ -150,18 +150,18 @@ class EdgeMQTT:
         # RAW STATUS TELEMETRY FROM ESP32
         # ---------------------------------------
         if message.topic.endswith("/status"):
-            # print("[MQTT] Status:", data)
+            print("[MQTT] Status:", data)
 
-            # # ⭐ Send to machine state
-            # # state = machine_state_manager.apply_telemetry(data)
-            # # print("[STATE] Updated:", state)
+            # ⭐ Send to machine state
+            # state = machine_state_manager.apply_telemetry(data)
+            # print("[STATE] Updated:", state)
 
-            # # ⭐ Forward to telemetry service (NestJS)
-            # telemetry_service.update(data)
+            # ⭐ Forward to telemetry service (NestJS)
+            telemetry_service.update(data)
 
             return
 
-    def publish(self, topic, payload):
+    def publish(self, topic, payload): 
         self.client.publish(topic, payload)
     
     

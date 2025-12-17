@@ -1,7 +1,9 @@
 # app/services/telemetry_service.py
 import time, json
+from types import SimpleNamespace
 
 from app.state.state_orchestrator import state_orchestrator
+from app.services.rule_engine import get_rule_engine
 
 class TelemetryService:
     def __init__(self):
@@ -25,10 +27,32 @@ class TelemetryService:
         # APPLY STATE MACHINE + PROGRAM ENGINE
         # ---------------------------------------
         try:
+            print("[TELEMETRY] update() called with:", data)
             ms, ps = state_orchestrator.process(data)
+
+
         except Exception as e:
             print("[Telemetry] Orchestrator error:", e)
             return
+
+# ---------------------------------------
+        # 🔥 RUN RULE ENGINE (THIS WAS MISSING)
+        # ---------------------------------------
+        try:
+            print("[TELEMETRY] invoking rule engine")
+            rule_engine = get_rule_engine(mqtt_client=self.mqtt_client)
+
+            fired = rule_engine.evaluate_all(
+                raw=data,
+                machine=SimpleNamespace(**ms.__dict__),
+                program=SimpleNamespace(**ps.serialize())
+            )
+            if fired:
+                print("[RULES] Fired:", fired)
+        except Exception as e:
+            print("[Telemetry] Rule engine error:", e)
+
+
 
        
         # ---------------------------------------

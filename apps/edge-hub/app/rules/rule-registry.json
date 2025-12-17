@@ -1,15 +1,16 @@
 [
   {
-  "id": "open_when_gap",
-  "enabled": true,
-  "priority": 100,
-  "condition": "machine['gap_transition'] == 'enter'",
-  "cooldown_ms": 0,
-  "actions": [
-    {
-      "type": "open_valve",
-      "params": { "valve_id": 1 }
-    }
+    "id": "dispense_on_plate_enter",
+    "enabled": true,
+    "priority": 100,
+    "condition": "machine.gap_transition == 'enter'",
+    "actions": [
+      {
+        "type": "start_workflow",
+        "params": {
+          "workflow": "dispense.start"
+        }
+      }
     ]
   },
 
@@ -17,10 +18,25 @@
     "id": "stop_on_high_pressure",
     "enabled": true,
     "priority": 150,
-    "condition": "machine.get('pressure', 0) > 100",
+    "condition": "machine.pressure > 2.8",
     "actions": [
       { "type": "stop_program" }
     ]
-  }
-]
+  },
 
+  {
+    "id": "auto_reprime_pressure",
+    "enabled": true,
+    "priority": 120,
+    "cooldown_ms": 10000,
+    "condition": "machine.pressure < 1.4 and machine.phase.value == 'rest_dispense_edge'",
+    "actions": [
+      {
+        "type": "pressure_reprime"
+      }
+    ]
+  }
+
+
+
+]

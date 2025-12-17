@@ -1,0 +1,13 @@
+# Node
+node_modules/
+**/node_modules/
+
+# Turborepo
+.turbo/
+
+# Logs
+*.log
+
+# Env
+.env
+.env.*

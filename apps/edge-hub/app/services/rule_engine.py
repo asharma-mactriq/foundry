@@ -148,6 +148,7 @@ class RuleEngine:
             "stop_workflow": self._action_stop_workflow,
             "stop_program": self._action_stop_program,
             "publish_alert": self._action_publish_alert,
+            "pressure_reprime": self._action_pressure_reprime,
             "nop": lambda *a, **k: None,
         }
 
@@ -347,6 +348,32 @@ class RuleEngine:
         except Exception as e:
             print(_LOG_PREFIX, "publish_alert error", e)
         return False
+
+    def _action_pressure_reprime(self, params, **ctx):
+        machine = ctx["machine"]
+
+        pressure = float(getattr(machine, "pressure", 0.0))
+
+        target = 1.8
+        min_ms = 500
+        max_ms = 5000
+
+        deficit = max(0.0, target - pressure)
+        duration_ms = int(deficit * 1000)
+
+        duration_ms = max(min_ms, min(duration_ms, max_ms))
+
+        print(f"[RULES] Auto reprime → {duration_ms} ms")
+
+        create_and_queue_command(
+            name="pressure.reprime",
+            payload={
+                "duration_ms": duration_ms,
+                "threshold": target - 0.2
+            }
+        )
+        return True
+
 
 # Singleton convenience
 _rule_engine_instance = None

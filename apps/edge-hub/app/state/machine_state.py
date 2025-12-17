@@ -1,6 +1,13 @@
 from dataclasses import dataclass, field
 import time
+from enum import Enum
 
+class MachinePhase(str, Enum):
+    INIT = "init"
+    MOVING = "moving"
+    REST_DISPENSE_EDGE = "rest_dispense_edge"
+    REST_FAR_EDGE = "rest_far_edge"
+    FAULT = "fault"
 
 @dataclass
 class MachineState:
@@ -20,6 +27,11 @@ class MachineState:
     last_event: str = None
     last_event_ts: float = 0.0
     last_update_ts: float = 0.0
+
+
+    phase: MachinePhase = MachinePhase.INIT
+
+
 
     # ------------------------------
     # FIXED ENTER / EXIT detection
@@ -48,6 +60,13 @@ class MachineState:
 
         # otherwise no transition
         self.gap_transition = None
+
+    def derive_phase(self):
+            # TEMP LOGIC (OFFICE SAFE)
+            if self.gap == 0:
+                self.phase = MachinePhase.MOVING
+            elif self.gap == 1 and self.plate_stable:
+                self.phase = MachinePhase.REST_DISPENSE_EDGE
 
     # ------------------------------
     # FIXED stable window detection
@@ -80,7 +99,10 @@ class MachineStateManager:
         self.state.last_update_ts = data.get("ts", time.time())
         self.state.check_stable_window()
 
-        return self.state
+        self.state.derive_phase()
 
+        return self.state
+    
+    
 
 machine_state_manager = MachineStateManager()

@@ -63,6 +63,22 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     #         ]
     # }
 
+    if cmd_name == "dispense.start":
+        return {
+            "name": "dispense_start",
+            "cmd_id": cmd_id,
+            "steps": [
+                { "type": "CMD_ACK_RECEIVED" },
+                { "type": "CMD_ACK_STARTED" },
+
+                { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
+
+                { "type": "CMD_ACK_COMPLETED" }
+            ]
+        }
+
+
+
     if cmd_name == "program.stop":
         return {
             "name": "program_stop",
@@ -101,14 +117,13 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             "cmd_id": cmd_id,
             "steps": [
                 { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" }, 
-                {"type": "OPEN_VALVE", "valveId": valve},
-                {"type": "WAIT_MS", "durationMs": payload.get("duration_ms", 5000)},
-                {"type": "CHECK_PRESSURE", "threshold": payload.get("threshold", 1.5)},
-                {"type": "CLOSE_VALVE", "valveId": valve},
-                {"type": "EMIT_EVENT", "eventName": "reprime_done"},
+                { "type": "CMD_ACK_STARTED" },
+                { "type": "OPEN_VALVE", "valveId": valve },
+                { "type": "WAIT_MS", "durationMs": payload.get("duration_ms", 5000) },
+                { "type": "CHECK_PRESSURE", "threshold": payload.get("threshold", 1.5) },
+                { "type": "CLOSE_VALVE", "valveId": valve },
+                { "type": "EMIT_EVENT", "eventName": "reprime_done" },
                 { "type": "CMD_ACK_COMPLETED" }
-
             ]
         }
 

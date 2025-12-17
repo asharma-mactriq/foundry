@@ -11,6 +11,12 @@ from app.services.command_store import command_store
 from app.services.device_state import device_state
 from app.workflows.workflow_builder import build_workflow_for_command
 
+from app.state.machine_state import machine_state_manager, MachinePhase
+from app.state.program_state import program_state
+from app.modes.mode_manager import mode_manager
+from app.modes.mode_types import FaultMode
+
+
 
 class CommandExecutor:
     def __init__(self, mqtt_client, tick_ms=50):
@@ -41,6 +47,39 @@ class CommandExecutor:
             if cmd:
                 self._send(cmd)
 
+    def _guard_command(self, cmd: dict) -> bool:
+        """
+        Final safety gate before sending command to ESP32.
+        Guard decides IF command is allowed — not HOW it executes.
+        """
+        name = cmd.get("name", "")
+
+        # Only guard physical actuation commands
+        if not name.startswith(("dispense", "pressure", "refill")):
+            return True
+
+        ms = machine_state_manager.state
+        ps = program_state
+        modes = mode_manager.get()
+
+        # -------- GLOBAL SAFETY --------
+        if modes["fault"] != FaultMode.none:
+            print(f"[GUARD] Blocked {name}: fault={modes['fault']}")
+            return False
+
+        if not ps.running:
+            print(f"[GUARD] Blocked {name}: program not running")
+            return False
+
+        # -------- DISPENSE-SPECIFIC --------
+        if name.startswith("dispense"):
+            if ms.phase != MachinePhase.REST_DISPENSE_EDGE:
+                print(f"[GUARD] Blocked {name}: phase={ms.phase}")
+                return False
+
+        return True
+
+
     # def _send(self, cmd):
     #     self.current_cmd = cmd
     #     self.sent_at = time.time()
@@ -69,6 +108,19 @@ class CommandExecutor:
     #     self.client.publish("devices/edge1/commands", json.dumps(cmd))
 
     def _send(self, cmd):
+
+    # 0. GUARD — FINAL SAFETY GATE
+        if not self._guard_command(cmd):
+            command_store.update_status(
+                cmd["cmd_id"],
+                "blocked",
+                {"reason": "guard_reject"}
+            )
+            print(f"[EXECUTOR] Command blocked by guard: {cmd['name']}")
+            return
+
+
+
         # 1. Handle local commands
         if self._handle_local_command(cmd):
             command_store.update_status(cmd["cmd_id"], "acked", {"local": True})
