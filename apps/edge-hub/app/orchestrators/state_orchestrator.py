@@ -1,7 +1,7 @@
 from app.state.machine_state import machine_state_manager
 from app.state.program_state import program_state
 from app.services.rule_engine import get_rule_engine
-from app.orchestrators import material_orchestrator
+from app.orchestrators.material_orchestrator import material_orchestrator
 
 class StateOrchestrator:
     def process(self, telemetry):
