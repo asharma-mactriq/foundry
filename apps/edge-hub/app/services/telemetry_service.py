@@ -2,7 +2,7 @@
 import time, json
 from types import SimpleNamespace
 
-from app.state.state_orchestrator import state_orchestrator
+from app.orchestrators.state_orchestrator import state_orchestrator
 from app.services.rule_engine import get_rule_engine
 
 class TelemetryService:

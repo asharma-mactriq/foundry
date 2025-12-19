@@ -183,18 +183,20 @@ class RuleEngine:
                 del self.rules[rule_id]
 
     # ---------- evaluation ----------
-    def evaluate_all(self, raw: Dict[str, Any], machine=None, program=None):
+    def evaluate_all(self, raw: Dict[str, Any], machine=None, program=None, material=None):
         """
         Evaluate rules for the incoming telemetry.
         - raw: raw telemetry dict
         - machine: MachineState object or dict
         - program: ProgramState object or dict
+        - material: MaterialState object or dict
         """
         # Build context for condition eval
         ctx = {
             "raw": raw,
             "machine": machine if machine is not None else {},
-            "program": program if program is not None else {}
+            "program": program if program is not None else {},
+            "material": material if material is not None else {},
         }
         fired = []
         # Rules ordered by priority desc (higher first), then id

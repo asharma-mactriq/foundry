@@ -1,12 +1,13 @@
 from app.state.machine_state import machine_state_manager
 from app.state.program_state import program_state
 from app.services.rule_engine import get_rule_engine
-
+from app.orchestrators import material_orchestrator
 
 class StateOrchestrator:
     def process(self, telemetry):
         # 1. Update machine state from incoming telemetry
         ms = machine_state_manager.apply_telemetry(telemetry)
+        mat = material_orchestrator.process_telemetry(telemetry)
         ps = program_state
 
         # print(f"[DEBUG] running={ps.is_running()}, "
@@ -56,12 +57,13 @@ class StateOrchestrator:
     # ------------------------------------------
     # INTERNAL: rule evaluation entry point
     # ------------------------------------------
-    def _evaluate_rules(self, raw, ms, ps):
+    def _evaluate_rules(self, raw, ms, ps, mat):
         rule_engine = get_rule_engine()
         fired = rule_engine.evaluate_all(
             raw=raw,
             machine=ms.__dict__,
             program=ps.serialize(),
+            material=mat.__dict__,
         )
         if fired:
             print("[RULES] Fired:", fired)
