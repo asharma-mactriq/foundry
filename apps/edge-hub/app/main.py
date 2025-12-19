@@ -12,7 +12,7 @@ from app.api.registry import router as registry_router
 from app.api.program import router as program_router
 from app.services.rule_engine import get_rule_engine
 from app.api.acks import router as acks_router
-from app.api import status as status_router
+from app.api import status 
 
 app = FastAPI(title="Mactriq Edge Engine")
 
@@ -142,4 +142,4 @@ app.include_router(modes.router, prefix="/modes")
 app.include_router(registry_router, prefix="/commands")
 app.include_router(program_router, prefix="/program")
 app.include_router(acks_router, prefix="/api")
-app.include_router(status_router, prefix="/state", tags=["state"])
+app.include_router(status.router, prefix="/state", tags=["state"])
