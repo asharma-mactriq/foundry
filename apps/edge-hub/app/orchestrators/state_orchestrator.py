@@ -16,7 +16,7 @@ class StateOrchestrator:
         # If program is NOT running → still evaluate safety rules
         # but DO NOT process pass enter/stable/exit transitions.
         if not ps.is_running():
-            self._evaluate_rules(telemetry, ms, ps)
+            self._evaluate_rules(telemetry, ms, ps, mat)
             return ms, ps
 
         # --------------------------------------
@@ -49,7 +49,7 @@ class StateOrchestrator:
         # --------------------------------------
         # FINALLY: RUN RULE ENGINE
         # --------------------------------------
-        self._evaluate_rules(telemetry, ms, ps)
+        self._evaluate_rules(telemetry, ms, ps, mat)
 
         return ms, ps
 
