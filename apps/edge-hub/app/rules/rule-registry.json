@@ -35,7 +35,56 @@
         "type": "pressure_reprime"
       }
     ]
-  }
+  },
+
+  {
+    "id": "auto_refill_when_low",
+    "enabled": true,
+    "priority": 120,
+    "condition": "material.pot_filled == false and material.reservoir_has_paint == true",
+    "actions": [
+      { "type": "refill.start" }
+    ]
+  },
+  {
+  "id": "stop_on_paint_empty",
+  "priority": 200,
+  "condition": "material.paint_confidence == 'LOW'",
+  "actions": [{ "type": "stop_program" }]
+},
+{
+  "id": "auto_refill",
+  "priority": 150,
+  "cooldown_ms": 15000,
+  "condition": "material.estimated_pot_volume_ml < 800 and machine.phase == 'rest_dispense_edge'",
+  "actions": [{ "type": "refill.start" }]
+},
+{
+  "id": "auto_reprime_on_flow_loss",
+  "priority": 160,
+  "cooldown_ms": 10000,
+  "condition": "material.dispense_confidence == 'LOW'",
+  "actions": [{ "type": "pressure.reprime" }]
+},
+{
+  "id": "paint_low_warning",
+  "enabled": true,
+  "priority": 200,
+  "condition": "material.estimated_pot_volume_ml < 500",
+  "actions": [
+    {
+      "type": "emit_alert",
+      "params": {
+        "level": "warning",
+        "message": "Paint level low – refill soon"
+      }
+    }
+  ]
+}
+
+
+
+
 
 
 

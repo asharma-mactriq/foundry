@@ -17,8 +17,12 @@ class MaterialState:
     estimated_pot_volume_ml: float = 0.0
     estimated_dispensed_ml: float = 0.0
 
+    paint_confidence: str = "UNKNOWN"      # HIGH | LOW | UNKNOWN
+    dispense_confidence: str = "UNKNOWN"   # HIGH | LOW | UNKNOWN
+    
     dispensing_active: bool = False
     dispense_start_ts: float = 0.0
+    last_flow_ts: float = 0.0   # ✅ REQUIRED
 
     last_event: str = None
     last_event_ts: float = 0.0

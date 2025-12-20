@@ -16,7 +16,9 @@ from app.state.program_state import program_state
 from app.modes.mode_manager import mode_manager
 from app.modes.mode_types import FaultMode
 
+from app.state.material_state import material_state_manager
 
+MIN_USABLE_VOLUME = 300   # ml — conservative
 
 class CommandExecutor:
     def __init__(self, mqtt_client, tick_ms=50):
@@ -60,44 +62,58 @@ class CommandExecutor:
 
         ms = machine_state_manager.state
         ps = program_state
+        mat = material_state_manager.state
         modes = mode_manager.get()
         
         def block(reason):
-        	
-        	# 1. Printing to console
-        	
-        	print(f"\n[GUARD BLOCKED]")
-        	print(f"  cmd	: {name}")
-        	print(f"  reason	: {reason}")
-        	print(f"  phase	: {ms.phase}")
-        	print(f"  pressure	: {ms.pressure}")
-        	print(f"  program	: running={ps.running}")
-        	print(f"  fault	: {modes['fault']}\n")
-        	
-        	# 2. Publish to mosquitto MQTT
-        	
-        	if self.client:
-        		payload = {
-        		    "cmd": name,
-        		    "reason": reason,
-        		    "phase" : str(ms.phase),
-        		    "pressure" : ms.pressure,
-        		    "program_running" : ps.running,
-        		    "fault" : modes['fault'] # Add fault to json for consistency
-        		}
-        		
-        		self.client.publish("edge/guards", json.dumps(payload))
-        	
-        	return False
+            
+            # 1. Printing to console
+            
+            print(f"\n[GUARD BLOCKED]")
+            print(f"  cmd\t: {name}")
+            print(f"  reason\t: {reason}")
+            print(f"  phase\t: {ms.phase}")
+            print(f"  pressure\t: {ms.pressure}")
+            print(f"  pot_ml    : {mat.estimated_pot_volume_ml}")
+            print(f"  program\t: running={ps.running}")
+            print(f"  fault\t: {modes['fault']}\n")
+            
+            # 2. Publish to mosquitto MQTT
+            
+            if self.client:
+                payload = {
+                    "cmd": name,
+                    "reason": reason,
+                    "phase" : str(ms.phase),
+                    "pressure" : ms.pressure,
+                    "pot_volume_ml": mat.estimated_pot_volume_ml,
+                    "program_running" : ps.running,
+                    "fault" : modes['fault'] # Add fault to json for consistency
+                }
+                
+                self.client.publish("edge/guards", json.dumps(payload))
+            
+            return False
 
         # -------- GLOBAL SAFETY --------
         if modes["fault"] != FaultMode.none:
             # print(f"[GUARD] Blocked {name}: fault={modes['fault']}")
             return block(f"fault={modes['fault']}")
 
+
         if not ps.running:
             # print(f"[GUARD] Blocked {name}: program not running")
             return block("program not running")
+
+        # ==================================================
+        # 3. MATERIAL SAFETY (THIS WAS MISSING)
+        # ==================================================
+        if name.startswith("dispense"):
+            if not mat.dispense_line_primed:
+                return block("dispense line not primed")
+
+            if mat.estimated_pot_volume_ml <= MIN_USABLE_VOLUME:
+                return block("insufficient paint in pot")
 
         # -------- DISPENSE-SPECIFIC --------
         if name.startswith("dispense"):
