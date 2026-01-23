@@ -2,83 +2,57 @@
   {
     "id": "dispense_on_stable_gap",
     "priority": 100,
-    "condition": "machine.is_dispense_window() == true",
-    "actions": [
-      { "type": "dispense.start" }
-    ]
+    "condition": "machine['phase'] == 'rest_dispense_edge' and machine['plate_stable'] == True and machine['dispense_fired_for_gap'] == False",
+    "actions": [{ "type": "dispense.start" }]
   },
+
   {
     "id": "stop_on_high_pressure",
-    "enabled": true,
     "priority": 150,
-    "condition": "machine.pressure > 2.8",
-    "actions": [
-      { "type": "stop_program" }
-    ]
+    "condition": "machine['pressure'] > 2.8",
+    "actions": [{ "type": "stop_program" }]
   },
 
   {
     "id": "auto_reprime_pressure",
-    "enabled": true,
     "priority": 120,
     "cooldown_ms": 10000,
-    "condition": "machine.pressure < 1.4 and machine.phase.value == 'rest_dispense_edge'",
-    "actions": [
-      {
-        "type": "pressure_reprime"
-      }
-    ]
+    "condition": "machine['pressure'] < 1.4 and machine['phase'] == 'rest_dispense_edge'",
+    "actions": [{ "type": "pressure_reprime" }]
   },
 
   {
     "id": "auto_refill_when_low",
-    "enabled": true,
     "priority": 120,
-    "condition": "material.pot_filled == false and material.reservoir_has_paint == true",
-    "actions": [
-      { "type": "refill.start" }
-    ]
+    "condition": "material['pot_filled'] == False and material['reservoir_has_paint'] == True",
+    "actions": [{ "type": "refill.start" }]
   },
+
   {
-  "id": "stop_on_paint_empty",
-  "priority": 200,
-  "condition": "material.paint_confidence == 'LOW'",
-  "actions": [{ "type": "stop_program" }]
-},
-{
-  "id": "auto_refill",
-  "priority": 150,
-  "cooldown_ms": 15000,
-  "condition": "material.estimated_pot_volume_ml < 800 and machine.phase == 'rest_dispense_edge'",
-  "actions": [{ "type": "refill.start" }]
-},
-{
-  "id": "auto_reprime_on_flow_loss",
-  "priority": 160,
-  "cooldown_ms": 10000,
-  "condition": "material.dispense_confidence == 'LOW'",
-  "actions": [{ "type": "pressure.reprime" }]
-},
-{
-  "id": "paint_low_warning",
-  "enabled": true,
-  "priority": 200,
-  "condition": "material.estimated_pot_volume_ml < 500",
-  "actions": [
-    {
+    "id": "stop_on_paint_empty",
+    "priority": 200,
+    "condition": "material['paint_confidence'] == 'LOW'",
+    "actions": [{ "type": "stop_program" }]
+  },
+
+  {
+    "id": "auto_refill",
+    "priority": 150,
+    "cooldown_ms": 15000,
+    "condition": "material['estimated_pot_volume_ml'] < 800 and machine['phase'] == 'rest_dispense_edge'",
+    "actions": [{ "type": "refill.start" }]
+  },
+
+  {
+    "id": "paint_low_warning",
+    "priority": 200,
+    "condition": "material['estimated_pot_volume_ml'] < 500",
+    "actions": [{
       "type": "emit_alert",
       "params": {
         "level": "warning",
         "message": "Paint level low – refill soon"
       }
-    }
-  ]
-}
-
-
-
-
-
-
-
+    }]
+  }
 ]

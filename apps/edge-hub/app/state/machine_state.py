@@ -9,12 +9,7 @@ class MachinePhase(str, Enum):
     REST_FAR_EDGE = "rest_far_edge"
     FAULT = "fault"
 
-def is_dispense_window(self):
-    return (
-        self.phase == MachinePhase.REST_DISPENSE_EDGE
-        and self.plate_stable
-        and not self.dispense_fired_for_gap
-    )
+
 
 @dataclass
 class MachineState:
@@ -39,7 +34,12 @@ class MachineState:
 
     phase: MachinePhase = MachinePhase.INIT
 
-
+    def is_dispense_window(self):
+        return (
+            self.phase == MachinePhase.REST_DISPENSE_EDGE
+            and self.plate_stable
+            and not self.dispense_fired_for_gap
+        )
 
     # ------------------------------
     # FIXED ENTER / EXIT detection
