@@ -182,38 +182,12 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             "name": "program_start",
             "cmd_id": cmd_id,
             "steps": [
-                # Valve 1
-                {"type": "OPEN_VALVE", "valveId": 1},
-                {"type": "WAIT_MS", "durationMs": 5000},
-                {"type": "CLOSE_VALVE", "valveId": 1},
-                {"type": "WAIT_MS", "durationMs": 200},
-
-                # Valve 2
-                {"type": "OPEN_VALVE", "valveId": 2},
-                {"type": "WAIT_MS", "durationMs": 2000},
-                {"type": "CLOSE_VALVE", "valveId": 2},
-                {"type": "WAIT_MS", "durationMs": 200},
-
-                # Valve 3
-                {"type": "OPEN_VALVE", "valveId": 3},
-                {"type": "WAIT_MS", "durationMs": 2000},
-                {"type": "CLOSE_VALVE", "valveId": 3},
-                {"type": "WAIT_MS", "durationMs": 200},
-
-                # Valve 4
-                {"type": "OPEN_VALVE", "valveId": 4},
-                {"type": "WAIT_MS", "durationMs": 2000},
-                {"type": "CLOSE_VALVE", "valveId": 4},
-                {"type": "WAIT_MS", "durationMs": 200},
-
-                # Valve 5
-                {"type": "OPEN_VALVE", "valveId": 5},
-                {"type": "WAIT_MS", "durationMs": 2000},
-                {"type": "CLOSE_VALVE", "valveId": 5},
-                {"type": "WAIT_MS", "durationMs": 200},
+                { "type": "CMD_ACK_RECEIVED" },
+                { "type": "CMD_ACK_STARTED" },
+                { "type": "EMIT_EVENT", "eventName": "program_started" },
+                { "type": "CMD_ACK_COMPLETED" }
             ]
         }
-
 
     # FALLBACK
     return {
