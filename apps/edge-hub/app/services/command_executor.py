@@ -57,6 +57,14 @@ class CommandExecutor:
                 self._send(cmd)
 
     def _guard_command(self, cmd: dict) -> bool:
+
+        BOOTSTRAP_COMMANDS = {
+            "pressure.reprime",
+            "pressure.release",
+            "refill.start",
+            "system.reset",
+        }
+
         """
         Final safety gate before sending command to ESP32.
         Guard decides IF command is allowed — not HOW it executes.
@@ -97,8 +105,11 @@ class CommandExecutor:
         # GLOBAL SYSTEM READINESS (MUST BE FIRST)
         # --------------------------------------------------
         if system_state.phase != SystemPhase.READY:
-            if name.startswith(("dispense", "refill", "pressure")):
-                return block("system_not_ready")
+            # Allow bootstrap commands to MAKE the system ready
+            if name not in BOOTSTRAP_COMMANDS:
+                if name.startswith(("dispense", "refill", "pressure")):
+                    return block("system_not_ready")
+
 
         # Only guard physical actuation commands
         if not name.startswith(("dispense", "pressure", "refill")):
