@@ -9,6 +9,13 @@ class MachinePhase(str, Enum):
     REST_FAR_EDGE = "rest_far_edge"
     FAULT = "fault"
 
+def is_dispense_window(self):
+    return (
+        self.phase == MachinePhase.REST_DISPENSE_EDGE
+        and self.plate_stable
+        and not self.dispense_fired_for_gap
+    )
+
 @dataclass
 class MachineState:
     pressure: float = 0.0
@@ -27,6 +34,7 @@ class MachineState:
     last_event: str = None
     last_event_ts: float = 0.0
     last_update_ts: float = 0.0
+    dispense_fired_for_gap: bool = False
 
 
     phase: MachinePhase = MachinePhase.INIT
@@ -54,6 +62,7 @@ class MachineState:
         if old == 1 and g == 0:
             self.gap_transition = "exit"
             self.plate_stable = False
+            self.dispense_fired_for_gap = False
             self.last_event = "plate_exit"
             self.last_event_ts = time.time()
             return

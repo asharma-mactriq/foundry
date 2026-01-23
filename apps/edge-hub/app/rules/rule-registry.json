@@ -1,19 +1,12 @@
 [
   {
-    "id": "dispense_on_plate_enter",
-    "enabled": true,
+    "id": "dispense_on_stable_gap",
     "priority": 100,
-    "condition": "machine.gap_transition == 'enter'",
+    "condition": "machine.is_dispense_window() == true",
     "actions": [
-      {
-        "type": "start_workflow",
-        "params": {
-          "workflow": "dispense.start"
-        }
-      }
+      { "type": "dispense.start" }
     ]
   },
-
   {
     "id": "stop_on_high_pressure",
     "enabled": true,

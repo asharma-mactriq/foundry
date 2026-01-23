@@ -17,6 +17,8 @@ from app.modes.mode_manager import mode_manager
 from app.modes.mode_types import FaultMode
 
 from app.state.material_state import material_state_manager
+from app.commands.command_registry import command_registry
+from app.modes.mode_manager import mode_manager
 
 MIN_USABLE_VOLUME = 300   # ml — conservative
 
@@ -154,6 +156,34 @@ class CommandExecutor:
 
     def _send(self, cmd):
 
+        # ==================================================
+        # 0. MODE / POLICY VALIDATION (NEW)
+        # ==================================================
+        try:
+            spec = command_registry.get(cmd["name"])
+            mode_state = mode_manager.get()
+
+            if not spec.is_allowed_in_mode(mode_state):
+                command_store.update_status(
+                    cmd["cmd_id"],
+                    "blocked",
+                    {"reason": "mode_not_allowed"}
+                )
+                print(f"[EXECUTOR] Blocked by mode policy: {cmd['name']}")
+                return
+
+        except KeyError:
+            # Unknown command → block hard
+            command_store.update_status(
+                cmd["cmd_id"],
+                "blocked",
+                {"reason": "unknown_command"}
+            )
+            print(f"[EXECUTOR] Unknown command: {cmd['name']}")
+            return
+
+
+
     # 0. GUARD — FINAL SAFETY GATE
         if not self._guard_command(cmd):
             command_store.update_status(
@@ -164,7 +194,19 @@ class CommandExecutor:
             print(f"[EXECUTOR] Command blocked by guard: {cmd['name']}")
             return
 
+        if cmd["name"] == "dispense.start":
+            ms = machine_state_manager.state
+            if getattr(ms, "dispense_fired_for_gap", False):
+                command_store.update_status(
+                    cmd["cmd_id"],
+                    "blocked",
+                    {"reason": "already_dispensed_for_gap"}
+                )
+                print("[EXECUTOR] dispense already fired for this gap — blocked")
+                return
 
+            # mark as fired (one-shot)
+            ms.dispense_fired_for_gap = True
 
         # 1. Handle local commands
         if self._handle_local_command(cmd):

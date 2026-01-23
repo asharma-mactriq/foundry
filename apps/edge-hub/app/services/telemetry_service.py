@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from app.orchestrators.state_orchestrator import state_orchestrator
 from app.services.rule_engine import get_rule_engine
+from app.state.material_state import material_state_manager
 
 class TelemetryService:
     def __init__(self):
@@ -45,7 +46,8 @@ class TelemetryService:
             fired = rule_engine.evaluate_all(
                 raw=data,
                 machine=SimpleNamespace(**ms.__dict__),
-                program=SimpleNamespace(**ps.serialize())
+                program=SimpleNamespace(**ps.serialize()),
+                material=SimpleNamespace(**material_state_manager.state.__dict__)
             )
             if fired:
                 print("[RULES] Fired:", fired)
