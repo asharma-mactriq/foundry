@@ -70,14 +70,12 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             "steps": [
                 { "type": "CMD_ACK_RECEIVED" },
                 { "type": "CMD_ACK_STARTED" },
-
-                { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
-
+                { "type": "OPEN_VALVE", "valveId": 1 },
+                { "type": "WAIT_MS", "durationMs": 120 },
+                { "type": "CLOSE_VALVE", "valveId": 1 },
                 { "type": "CMD_ACK_COMPLETED" }
             ]
         }
-
-
 
     if cmd_name == "program.stop":
         return {

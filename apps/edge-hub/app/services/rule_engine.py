@@ -283,7 +283,7 @@ class RuleEngine:
             return False
         try:
             cmd_id = create_and_queue_command(
-                name="openValve",
+                name="closeValve",
                 payload={"valve_id": int(vid)}
             )
             print("[RULES] queued command:", cmd_id)

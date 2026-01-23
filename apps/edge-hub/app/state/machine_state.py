@@ -96,21 +96,45 @@ class MachineStateManager:
         self.state = MachineState()
 
     def apply_telemetry(self, data):
-        if "pressure" in data:
-            self.state.pressure = data["pressure"]
+        # -------- PRESSURE --------
+        if "pot_pressure" in data:
+            self.state.pressure = data["pot_pressure"]
 
-        if "flow" in data:
-            self.state.flow = data["flow"]
-
+        # -------- GAP SENSOR --------
         if "gap" in data:
             self.state.update_gap(int(data["gap"]))
 
-        self.state.last_update_ts = data.get("ts", time.time())
-        self.state.check_stable_window()
+        # -------- VALVES --------
+        if "valves" in data:
+            self.state.valves = data["valves"]
+            self.state.is_dispensing = bool(data["valves"].get("dispense", 0))
 
+        # -------- TIME --------
+        self.state.last_update_ts = data.get("ts", time.time())
+
+        # -------- DERIVED --------
+        self.state.check_stable_window()
         self.state.derive_phase()
 
         return self.state
+
+
+    # def apply_telemetry(self, data):
+    #     if "pressure" in data:
+    #         self.state.pressure = data["pressure"]
+
+    #     if "flow" in data:
+    #         self.state.flow = data["flow"]
+
+    #     if "gap" in data:
+    #         self.state.update_gap(int(data["gap"]))
+
+    #     self.state.last_update_ts = data.get("ts", time.time())
+    #     self.state.check_stable_window()
+
+    #     self.state.derive_phase()
+
+    #     return self.state
     
     
 

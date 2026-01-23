@@ -38,21 +38,21 @@ class TelemetryService:
 
 # ---------------------------------------
         # 🔥 RUN RULE ENGINE (THIS WAS MISSING)
-        # ---------------------------------------
-        try:
-            print("[TELEMETRY] invoking rule engine")
-            rule_engine = get_rule_engine(mqtt_client=self.mqtt_client)
+        # # ---------------------------------------
+        # try:
+        #     print("[TELEMETRY] invoking rule engine")
+        #     rule_engine = get_rule_engine(mqtt_client=self.mqtt_client)
 
-            fired = rule_engine.evaluate_all(
-                raw=data,
-                machine=SimpleNamespace(**ms.__dict__),
-                program=SimpleNamespace(**ps.serialize()),
-                material=SimpleNamespace(**material_state_manager.state.__dict__)
-            )
-            if fired:
-                print("[RULES] Fired:", fired)
-        except Exception as e:
-            print("[Telemetry] Rule engine error:", e)
+        #     fired = rule_engine.evaluate_all(
+        #         raw=data,
+        #         machine=SimpleNamespace(**ms.__dict__),
+        #         program=SimpleNamespace(**ps.serialize()),
+        #         material=SimpleNamespace(**material_state_manager.state.__dict__)
+        #     )
+        #     if fired:
+        #         print("[RULES] Fired:", fired)
+        # except Exception as e:
+        #     print("[Telemetry] Rule engine error:", e)
 
 
 

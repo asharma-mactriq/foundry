@@ -15,9 +15,13 @@ class StateOrchestrator:
 
         # If program is NOT running → still evaluate safety rules
         # but DO NOT process pass enter/stable/exit transitions.
+        # if not ps.is_running():
+        #     self._evaluate_rules(telemetry, ms, ps, mat)
+        #     return ms, ps
+
         if not ps.is_running():
-            self._evaluate_rules(telemetry, ms, ps, mat)
             return ms, ps
+
 
         # --------------------------------------
         # PASS ENTER (gap: 0 → 1)

@@ -8,36 +8,80 @@ FLOW_TIMEOUT_S = 1.5
 
 class MaterialOrchestrator:
 
+    # def process_telemetry(self, telemetry):
+    #     ms = material_state_manager.state
+    #     now = telemetry.get("ts", time.time())  # ✅ DEFINE NOW
+
+
+
+    #     if "pressure" in telemetry:
+    #         ms.pot_pressure = telemetry["pressure"]
+
+    #     if ms.dispensing_active:
+    #         if ms.last_flow_ts:
+    #             dt = now - ms.last_flow_ts
+    #             # conservative assumed flow (ml/s)
+    #             ASSUMED_FLOW = 1.0
+    #             ms.estimated_dispensed_ml += ASSUMED_FLOW * dt
+    #             ms.estimated_pot_volume_ml -= ASSUMED_FLOW * dt
+    #         ms.last_flow_ts = now
+
+        
+    #             # ---- Paint availability confidence ----
+    #     if ms.dispensing_active:
+    #         if ms.estimated_pot_volume_ml < MIN_USABLE_VOLUME:
+    #             ms.paint_confidence = "LOW"
+    #         else:
+    #             ms.paint_confidence = "HIGH"
+
+    #     # ---- Dispense health confidence ----
+    #     if ms.dispensing_active:
+    #         if now - ms.last_flow_ts > FLOW_TIMEOUT_S:
+    #             ms.dispense_confidence = "LOW"
+    #         else:
+    #             ms.dispense_confidence = "HIGH"
+
     def process_telemetry(self, telemetry):
         ms = material_state_manager.state
-        now = telemetry.get("ts", time.time())  # ✅ DEFINE NOW
+        now = telemetry.get("ts", time.time())
 
+        # -------------------------
+        # PRESSURE
+        # -------------------------
+        if "pot_pressure" in telemetry:
+            ms.pot_pressure = telemetry["pot_pressure"]
 
+        # -------------------------
+        # WEIGHT-BASED DISPENSE
+        # -------------------------
+        if "pot_weight" in telemetry:
+            prev = ms.estimated_pot_volume_ml
+            current = telemetry["pot_weight"]
 
-        if "pressure" in telemetry:
-            ms.pot_pressure = telemetry["pressure"]
-
-        if "flow" in telemetry and ms.dispensing_active:
-            if ms.last_flow_ts:
-                dt = now - ms.last_flow_ts
-                ms.estimated_dispensed_ml += telemetry["flow"] * dt
-                ms.estimated_pot_volume_ml -= telemetry["flow"] * dt
-            ms.last_flow_ts = now
-            return ms
-        
-                # ---- Paint availability confidence ----
-        if ms.dispensing_active:
-            if ms.estimated_pot_volume_ml < MIN_USABLE_VOLUME:
-                ms.paint_confidence = "LOW"
+            if prev == 0:
+                ms.estimated_pot_volume_ml = current
             else:
-                ms.paint_confidence = "HIGH"
+                delta = prev - current
+                if delta > 0:
+                    ms.estimated_dispensed_ml += delta
+                    ms.estimated_pot_volume_ml = current
 
-        # ---- Dispense health confidence ----
-        if ms.dispensing_active:
-            if now - ms.last_flow_ts > FLOW_TIMEOUT_S:
-                ms.dispense_confidence = "LOW"
-            else:
-                ms.dispense_confidence = "HIGH"
+        # -------------------------
+        # DISPENSING STATE
+        # -------------------------
+        valves = telemetry.get("valves", {})
+        ms.dispensing_active = bool(valves.get("dispense", 0))
+
+        # -------------------------
+        # CONFIDENCE
+        # -------------------------
+        if ms.estimated_pot_volume_ml < MIN_USABLE_VOLUME:
+            ms.paint_confidence = "LOW"
+        else:
+            ms.paint_confidence = "HIGH"
+
+        ms.last_event_ts = now
+        return ms
 
 
     def on_workflow_event(self, event):
