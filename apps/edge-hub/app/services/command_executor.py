@@ -1,5 +1,7 @@
 # app/services/command_executor.py
 
+import cmd
+from unicodedata import name
 import uuid
 import time
 import json
@@ -55,70 +57,68 @@ class CommandExecutor:
                 self._send(cmd)
 
     def _guard_command(self, cmd: dict) -> bool:
-
-        if system_state.phase != SystemPhase.READY:
-            if cmd["name"].startswith(("dispense", "refill", "pressure")):
-                return block("system_not_ready")
-
-
         """
         Final safety gate before sending command to ESP32.
         Guard decides IF command is allowed — not HOW it executes.
         """
-        name = cmd.get("name", "")
 
-        # Only guard physical actuation commands
-        if not name.startswith(("dispense", "pressure", "refill")):
-            return True
+        name = cmd.get("name", "")
 
         ms = machine_state_manager.state
         ps = program_state
         mat = material_state_manager.state
         modes = mode_manager.get()
-        
+
         def block(reason):
-            
-            # 1. Printing to console
-            
             print(f"\n[GUARD BLOCKED]")
-            print(f"  cmd\t: {name}")
-            print(f"  reason\t: {reason}")
-            print(f"  phase\t: {ms.phase}")
-            print(f"  pressure\t: {ms.pressure}")
-            print(f"  pot_ml    : {mat.estimated_pot_volume_ml}")
-            print(f"  program\t: running={ps.running}")
-            print(f"  fault\t: {modes['fault']}\n")
-            
-            # 2. Publish to mosquitto MQTT
-            
+            print(f"  cmd        : {name}")
+            print(f"  reason     : {reason}")
+            print(f"  phase      : {ms.phase}")
+            print(f"  pressure   : {ms.pressure}")
+            print(f"  pot_ml     : {mat.estimated_pot_volume_ml}")
+            print(f"  program    : running={ps.running}")
+            print(f"  fault      : {modes['fault']}\n")
+
             if self.client:
                 payload = {
                     "cmd": name,
                     "reason": reason,
-                    "phase" : str(ms.phase),
-                    "pressure" : ms.pressure,
+                    "phase": str(ms.phase),
+                    "pressure": ms.pressure,
                     "pot_volume_ml": mat.estimated_pot_volume_ml,
-                    "program_running" : ps.running,
-                    "fault" : modes['fault'] # Add fault to json for consistency
+                    "program_running": ps.running,
+                    "fault": modes["fault"],
                 }
-                
                 self.client.publish("edge/guards", json.dumps(payload))
-            
+
             return False
 
-        # -------- GLOBAL SAFETY --------
+        # --------------------------------------------------
+        # GLOBAL SYSTEM READINESS (MUST BE FIRST)
+        # --------------------------------------------------
+        if system_state.phase != SystemPhase.READY:
+            if name.startswith(("dispense", "refill", "pressure")):
+                return block("system_not_ready")
+
+        # Only guard physical actuation commands
+        if not name.startswith(("dispense", "pressure", "refill")):
+            return True
+
+        # --------------------------------------------------
+        # FAULT MODE
+        # --------------------------------------------------
         if modes["fault"] != FaultMode.none:
-            # print(f"[GUARD] Blocked {name}: fault={modes['fault']}")
             return block(f"fault={modes['fault']}")
 
-
+        # --------------------------------------------------
+        # PROGRAM STATE
+        # --------------------------------------------------
         if not ps.running:
-            # print(f"[GUARD] Blocked {name}: program not running")
             return block("program not running")
 
-        # ==================================================
-        # 3. MATERIAL SAFETY (THIS WAS MISSING)
-        # ==================================================
+        # --------------------------------------------------
+        # MATERIAL SAFETY
+        # --------------------------------------------------
         if name.startswith("dispense"):
             if not mat.dispense_line_primed:
                 return block("dispense line not primed")
@@ -126,10 +126,11 @@ class CommandExecutor:
             if mat.estimated_pot_volume_ml <= MIN_USABLE_VOLUME:
                 return block("insufficient paint in pot")
 
-        # -------- DISPENSE-SPECIFIC --------
+        # --------------------------------------------------
+        # MACHINE PHASE
+        # --------------------------------------------------
         if name.startswith("dispense"):
             if ms.phase != MachinePhase.REST_DISPENSE_EDGE:
-                # print(f"[GUARD] Blocked {name}: phase={ms.phase}")
                 return block(f"invalid phase {ms.phase}")
 
         print(f"[GUARD ALLOWED] {name}")
