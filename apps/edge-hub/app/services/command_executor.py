@@ -20,6 +20,9 @@ from app.state.material_state import material_state_manager
 from app.commands.command_registry import command_registry
 from app.modes.mode_manager import mode_manager
 
+from app.state.system_state import system_state, SystemPhase
+
+
 MIN_USABLE_VOLUME = 300   # ml — conservative
 
 class CommandExecutor:
@@ -52,6 +55,12 @@ class CommandExecutor:
                 self._send(cmd)
 
     def _guard_command(self, cmd: dict) -> bool:
+
+        if system_state.phase != SystemPhase.READY:
+            if cmd["name"].startswith(("dispense", "refill", "pressure")):
+                return block("system_not_ready")
+
+
         """
         Final safety gate before sending command to ESP32.
         Guard decides IF command is allowed — not HOW it executes.

@@ -2,6 +2,8 @@ from app.state.machine_state import machine_state_manager
 from app.state.program_state import program_state
 from app.services.rule_engine import get_rule_engine
 from app.orchestrators.material_orchestrator import material_orchestrator
+from app.orchestrators.startup_orchestrator import startup_orchestrator
+from app.state.system_state import system_state, SystemPhase
 
 class StateOrchestrator:
     def process(self, telemetry):
@@ -9,6 +11,13 @@ class StateOrchestrator:
         ms = machine_state_manager.apply_telemetry(telemetry)
         mat = material_orchestrator.process_telemetry(telemetry)
         ps = program_state
+
+        #  NEW: always run startup orchestrator first
+        startup_orchestrator.process()
+
+        #  Block program logic until READY
+        if system_state.phase != SystemPhase.READY:
+            return ms, ps
 
         # print(f"[DEBUG] running={ps.is_running()}, "
         #       f"gap={ms.gap}, trans={ms.gap_transition}, stable={ms.plate_stable}")
