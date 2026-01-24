@@ -140,6 +140,17 @@ class CommandRegistry:
             description="Set dynamic dispensing flow rate"
         ))
 
+        self.register(CommandSpec(
+            name="refill.start",
+            group="refill",
+            allowed_operation_modes=[OperationMode.auto, OperationMode.manual],
+            allowed_process_modes=[ProcessMode.idle, ProcessMode.refill],
+            payload_schema={"duration_ms": "int"},
+            priority=60
+        ))
+
+
+
         # -------------------------------------------------------------
         # MOTION GROUP
         # -------------------------------------------------------------
@@ -187,6 +198,8 @@ class CommandRegistry:
             description="Signal that window has exited"
         ))
 
+
+
         # -------------------------------------------------------------
         # PROGRAM GROUP
         # -------------------------------------------------------------
@@ -233,6 +246,7 @@ class CommandRegistry:
             priority=50,
             description="Move to next forecast pass"
         ))
+
 
         # -------------------------------------------------------------
         # PRESSURE GROUP
