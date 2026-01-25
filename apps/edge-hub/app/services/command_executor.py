@@ -72,6 +72,27 @@ class CommandExecutor:
 
         name = cmd.get("name", "")
 
+                # --------------------------------------------------
+        # BOOTSTRAP / COMMISSIONING EXECUTION MODE
+        # Allows limited commands to run without telemetry
+        # --------------------------------------------------
+        execution = cmd.get("execution", "normal")
+
+        BOOTSTRAP_ALLOWED = {
+            "demo.run",
+            "program.start",
+            "pressure.reprime",
+            "refill.start",
+        }
+
+        if execution == "bootstrap":
+            if name in BOOTSTRAP_ALLOWED:
+                print(f"[GUARD BYPASS] bootstrap execution for {name}")
+                return True
+            else:
+                return block("bootstrap_not_allowed")
+
+
         ms = machine_state_manager.state
         ps = program_state
         mat = material_state_manager.state
@@ -308,6 +329,10 @@ class CommandExecutor:
         # 1. Add required fields for CommandExecutor and CommandStore schema
         cmd["cmd_id"] = cmd_id
         cmd["name"] = cmd.get("name") or cmd.get("cmd") or "unnamed"
+
+        # Preserve execution context (normal | bootstrap)
+        cmd["execution"] = cmd.get("execution", "normal")
+
         
         # FIX: ADD MISSING DB SCHEMA FIELDS HERE
         cmd["deviceId"] = cmd.get("deviceId", "edge1") # Default device ID

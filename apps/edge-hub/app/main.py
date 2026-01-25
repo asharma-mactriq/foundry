@@ -12,9 +12,24 @@ from app.api.registry import router as registry_router
 from app.api.program import router as program_router
 from app.services.rule_engine import get_rule_engine
 from app.api.acks import router as acks_router
-from app.api import status 
+from app.api import status
+from app.api import demo
+
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 
 app = FastAPI(title="Mactriq Edge Engine")
+
+# --------------------------------------------------
+# Serve phone UI
+# --------------------------------------------------
+app.mount(
+    "/",
+    StaticFiles(directory="app/ui", html=True),
+    name="ui"
+)
+
 
 # ROOT = os.path.dirname(os.path.abspath(__file__))
 # RULE_PATH = os.path.join(ROOT, "..", "rules", "rule-registry.json")
@@ -143,3 +158,4 @@ app.include_router(registry_router, prefix="/commands")
 app.include_router(program_router, prefix="/program")
 app.include_router(acks_router, prefix="/api")
 app.include_router(status.router, prefix="/state", tags=["state"])
+app.include_router(demo.router)

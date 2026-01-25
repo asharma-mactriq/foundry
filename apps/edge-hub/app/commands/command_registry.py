@@ -149,6 +149,22 @@ class CommandRegistry:
             priority=60
         ))
 
+        # Demo Run Command to be shown on edge ui
+
+        self.register(CommandSpec(
+            name="demo.run",
+            group="demo",
+            allowed_operation_modes=[OperationMode.auto],
+            allowed_process_modes=[ProcessMode.idle],
+            payload_schema={
+                "runs": "int",
+                "pressure": "str"  # "0.6" or "0.8"
+            },
+            timeout_ms=1000,
+            priority=90,
+            description="Run demo pressurise + dispense cycle"
+        ))
+
 
 
         # -------------------------------------------------------------

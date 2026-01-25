@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edge Demo</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 16px;
+      background: #111;
+      color: #eee;
+    }
+    button {
+      font-size: 18px;
+      padding: 12px;
+      width: 100%;
+      margin-top: 12px;
+    }
+    input {
+      font-size: 16px;
+      width: 100%;
+      padding: 8px;
+    }
+    .status {
+      margin-top: 16px;
+      background: #222;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Edge Demo – Commissioning Mode</h2>
+
+  <label>Number of cycles</label>
+  <input id="runs" type="number" min="1" max="10" value="3" />
+
+  <button onclick="startDemo()">START DEMO</button>
+
+  <div class="status" id="status">IDLE</div>
+
+<script>
+async function startDemo() {
+  const runs = Number(document.getElementById("runs").value);
+  const status = document.getElementById("status");
+
+  status.innerText = "STARTING…";
+
+  try {
+    const res = await fetch("/api/demo/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ runs })
+    });
+
+    const data = await res.json();
+    status.innerText = JSON.stringify(data, null, 2);
+  } catch (e) {
+    status.innerText = "ERROR: " + e;
+  }
+}
+</script>
+</body>
+</html>
