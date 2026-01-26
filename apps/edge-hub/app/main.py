@@ -25,10 +25,11 @@ app = FastAPI(title="Mactriq Edge Engine")
 # Serve phone UI
 # --------------------------------------------------
 app.mount(
-    "/",
+    "/ui",
     StaticFiles(directory="app/ui", html=True),
     name="ui"
 )
+
 
 
 # ROOT = os.path.dirname(os.path.abspath(__file__))
