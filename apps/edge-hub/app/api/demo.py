@@ -1,7 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
-
-from app.services.command_executor import executor
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -11,7 +9,12 @@ class DemoRunRequest(BaseModel):
 
 
 @router.post("/run")
-def run_demo(req: DemoRunRequest):
+def run_demo(req: DemoRunRequest, request: Request):
+    executor = request.app.state.executor
+
+    if executor is None:
+        raise RuntimeError("Executor not initialized")
+
     cmd_id = executor.send_command({
         "name": "demo.run",
         "payload": {
