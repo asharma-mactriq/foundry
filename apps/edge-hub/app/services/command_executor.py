@@ -200,7 +200,6 @@ class CommandExecutor:
         name = cmd.get("name", "")
         execution = cmd.get("execution", "normal")
 
-
         BOOTSTRAP_ALLOWED = {
             "demo.run",
             "program.start",
@@ -210,16 +209,13 @@ class CommandExecutor:
 
         if execution == "bootstrap" and name in BOOTSTRAP_ALLOWED:
             print(f"[EXECUTOR] Bootstrap bypass for {name}")
-            return self._send_unchecked(cmd)
+            return self._send_without_mode_policy(cmd)
 
-        return self._send_unchecked(cmd)
+        return self._send_with_mode_policy(cmd)
 
 
-    def _send_unchecked(self, cmd):
-
-        # ==================================================
-        # 0. MODE / POLICY VALIDATION (NEW)
-        # ==================================================
+    def _send_with_mode_policy(self, cmd):
+        # ---------- MODE / POLICY VALIDATION ----------
         try:
             spec = command_registry.get(cmd["name"])
             mode_state = mode_manager.get()
@@ -234,7 +230,6 @@ class CommandExecutor:
                 return
 
         except KeyError:
-            # Unknown command → block hard
             command_store.update_status(
                 cmd["cmd_id"],
                 "blocked",
@@ -242,6 +237,42 @@ class CommandExecutor:
             )
             print(f"[EXECUTOR] Unknown command: {cmd['name']}")
             return
+
+        return self._send_common(cmd)
+
+    
+    def _send_without_mode_policy(self, cmd):
+        # Skip registry mode enforcement entirely
+        return self._send_common(cmd)
+
+
+    def _send_common(self, cmd):
+
+        # ==================================================
+        # 0. MODE / POLICY VALIDATION (NEW)
+        # ==================================================
+        # try:
+        #     spec = command_registry.get(cmd["name"])
+        #     mode_state = mode_manager.get()
+
+        #     if not spec.is_allowed_in_mode(mode_state):
+        #         command_store.update_status(
+        #             cmd["cmd_id"],
+        #             "blocked",
+        #             {"reason": "mode_not_allowed"}
+        #         )
+        #         print(f"[EXECUTOR] Blocked by mode policy: {cmd['name']}")
+        #         return
+
+        # except KeyError:
+        #     # Unknown command → block hard
+        #     command_store.update_status(
+        #         cmd["cmd_id"],
+        #         "blocked",
+        #         {"reason": "unknown_command"}
+        #     )
+        #     print(f"[EXECUTOR] Unknown command: {cmd['name']}")
+        #     return
 
 
 
@@ -442,4 +473,4 @@ class CommandExecutor:
 
 
 
-executor = None
+# executor = None
