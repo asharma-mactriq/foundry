@@ -357,7 +357,9 @@ class CommandExecutor:
 
     def _check_timeout(self):
         elapsed = time.time() - self.sent_at
-        timeout_s = 1.0  # 1000 ms
+        timeout_s = 15.0  # 15 seconds
+
+        
 
         if elapsed > timeout_s:
             cmd_id = self.current_cmd["cmd_id"]
