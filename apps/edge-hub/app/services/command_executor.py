@@ -197,6 +197,25 @@ class CommandExecutor:
     #     self.client.publish("devices/edge1/commands", json.dumps(cmd))
 
     def _send(self, cmd):
+        name = cmd.get("name", "")
+        execution = cmd.get("execution", "normal")
+
+
+        BOOTSTRAP_ALLOWED = {
+            "demo.run",
+            "program.start",
+            "pressure.reprime",
+            "refill.start",
+        }
+
+        if execution == "bootstrap" and name in BOOTSTRAP_ALLOWED:
+            print(f"[EXECUTOR] Bootstrap bypass for {name}")
+            return self._send_unchecked(cmd)
+
+        return self._send_unchecked(cmd)
+
+
+    def _send_unchecked(self, cmd):
 
         # ==================================================
         # 0. MODE / POLICY VALIDATION (NEW)
