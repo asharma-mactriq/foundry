@@ -203,37 +203,37 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         # --------------------------------------------------
     # DEMO RUN (BOOTSTRAP SAFE)
     # --------------------------------------------------
+    # --------------------------------------------------
+    # DEMO RUN (PARSER-SAFE)
+    # --------------------------------------------------
     if cmd_name == "demo.run":
-        runs = payload.get("runs", 3)
+        runs = int(payload.get("runs", 3))
+        runs = max(1, min(runs, 5))   # HARD LIMIT (important)
 
-        steps = [
-            { "type": "CMD_ACK_RECEIVED" },
-            { "type": "CMD_ACK_STARTED" },
-            { "type": "EMIT_EVENT", "eventName": "demo_begin" },
-        ]
+        steps = []
 
-        for i in range(runs):
-            steps.extend([
-            { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_start" },
+        # ACK SEQUENCE (MANDATORY)
+        steps.append({ "type": "CMD_ACK_RECEIVED" })
+        steps.append({ "type": "CMD_ACK_STARTED" })
+        steps.append({ "type": "EMIT_EVENT", "eventName": "demo_begin" })
 
-            # Pressurize pot
-            { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
-            { "type": "WAIT_MS", "durationMs": 3000 },
-            { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
+        for _ in range(runs):
+            # PRESSURIZE POT
+            steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
+            steps.append({ "type": "WAIT_MS", "durationMs": 3000 })
+            steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
 
-            # Refill paint
-            { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
-            { "type": "WAIT_MS", "durationMs": 2000 },
-            { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
+            # REFILL PAINT
+            steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
+            steps.append({ "type": "WAIT_MS", "durationMs": 2000 })
+            steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
 
-            # Dispense
-            { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
-            { "type": "WAIT_MS", "durationMs": 150 },
-            { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
+            # DISPENSE
+            steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
+            steps.append({ "type": "WAIT_MS", "durationMs": 150 })
+            steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
 
-            { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_done" },
-        ])
-
+        # COMPLETION (MANDATORY LAST STEP)
         steps.append({ "type": "CMD_ACK_COMPLETED" })
 
         return {
@@ -241,6 +241,45 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             "cmd_id": cmd_id,
             "steps": steps
         }
+
+    # if cmd_name == "demo.run":
+    #     runs = payload.get("runs", 3)
+
+    #     steps = [
+    #         { "type": "CMD_ACK_RECEIVED" },
+    #         { "type": "CMD_ACK_STARTED" },
+    #         { "type": "EMIT_EVENT", "eventName": "demo_begin" },
+    #     ]
+
+    #     for i in range(runs):
+    #         steps.extend([
+    #         { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_start" },
+
+    #         # Pressurize pot
+    #         { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
+    #         { "type": "WAIT_MS", "durationMs": 3000 },
+    #         { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
+
+    #         # Refill paint
+    #         { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
+    #         { "type": "WAIT_MS", "durationMs": 2000 },
+    #         { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
+
+    #         # Dispense
+    #         { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
+    #         { "type": "WAIT_MS", "durationMs": 150 },
+    #         { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
+
+    #         { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_done" },
+    #     ])
+
+    #     steps.append({ "type": "CMD_ACK_COMPLETED" })
+
+    #     return {
+    #         "name": "demo_run",
+    #         "cmd_id": cmd_id,
+    #         "steps": steps
+    #     }
 
 
     # FALLBACK
