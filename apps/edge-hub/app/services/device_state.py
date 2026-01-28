@@ -23,7 +23,7 @@ class DeviceState:
         self.online = True
 
         # Example: pressure rules
-        pressure = data.get("pressure", None)
+        pressure = data.get("pot_pressure", None)
         if pressure is not None:
             if pressure < 0.8:
                 mode_manager.set_pressure(PressureMode.low_pressure)

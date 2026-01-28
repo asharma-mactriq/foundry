@@ -11,18 +11,29 @@ from typing import Dict, Any
 # Device map (TEMP VERSION)
 # You should move this to app/device_config/device_map.py later.
 # ----------------------------------------------------------------------
+# DEVICE_MAP = {
+#     "valves": {
+#         "dispense": 1,
+#         "refill": 2,
+#         "purge": 3,
+#         "pressurize": 4
+#     },
+#     "sensors": {
+#         "pressure": 1,
+#         "flow": 1
+#     }
+# }
 DEVICE_MAP = {
     "valves": {
         "dispense": 1,
-        "refill": 2,
-        "purge": 3,
-        "pressurize": 4
-    },
-    "sensors": {
-        "pressure": 1,
-        "flow": 1
+        "paint_inlet": 2,
+        "pot_air_in": 3,
+        "pot_air_out": 4,
+        "res_air_in": 5,
+        "res_air_out": 6,
     }
 }
+
 
 
 # ----------------------------------------------------------------------
@@ -109,7 +120,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     # PRESSURE REPRIME
     if cmd_name == "pressure.reprime":
-        valve = DEVICE_MAP["valves"]["pressurize"]
+        valve = DEVICE_MAP["valves"]["pot_air_in"]
         return {
             "name": "pressure_reprime",
             "cmd_id": cmd_id,
@@ -118,7 +129,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
                 { "type": "CMD_ACK_STARTED" },
                 { "type": "OPEN_VALVE", "valveId": valve },
                 { "type": "WAIT_MS", "durationMs": payload.get("duration_ms", 5000) },
-                { "type": "CHECK_PRESSURE", "threshold": payload.get("threshold", 1.5) },
+                # { "type": "CHECK_PRESSURE", "threshold": payload.get("threshold", 1.5) },
                 { "type": "CLOSE_VALVE", "valveId": valve },
                 { "type": "EMIT_EVENT", "eventName": "reprime_done" },
                 { "type": "CMD_ACK_COMPLETED" }
@@ -127,7 +138,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     # REFILL START
     if cmd_name == "refill.start":
-        valve = DEVICE_MAP["valves"]["refill"]
+        valve = DEVICE_MAP["valves"]["paint_inlet"]
         return {
             "name": "refill_cycle",
             "cmd_id": cmd_id,
@@ -145,7 +156,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     # PURGE NOZZLE
     if cmd_name == "purge.nozzle":
-        valve = DEVICE_MAP["valves"]["purge"]
+        valve = DEVICE_MAP["valves"]["dispense"]
         return {
             "name": "purge_nozzle",
             "cmd_id": cmd_id,
@@ -203,22 +214,25 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
         for i in range(runs):
             steps.extend([
-                { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_start" },
+            { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_start" },
 
-                { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pressurize"] },
-                { "type": "WAIT_MS", "durationMs": 3000 },
-                { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pressurize"] },
+            # Pressurize pot
+            { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
+            { "type": "WAIT_MS", "durationMs": 3000 },
+            { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
 
-                { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["refill"] },
-                { "type": "WAIT_MS", "durationMs": 2000 },
-                { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["refill"] },
+            # Refill paint
+            { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
+            { "type": "WAIT_MS", "durationMs": 2000 },
+            { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
 
-                { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
-                { "type": "WAIT_MS", "durationMs": 150 },
-                { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
+            # Dispense
+            { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
+            { "type": "WAIT_MS", "durationMs": 150 },
+            { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
 
-                { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_done" },
-            ])
+            { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_done" },
+        ])
 
         steps.append({ "type": "CMD_ACK_COMPLETED" })
 
