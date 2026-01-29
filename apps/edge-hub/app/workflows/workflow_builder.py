@@ -218,29 +218,26 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             # We iterate through valve IDs 1 to 6 as defined in your HAL_ESP::mapPins()
             valve_ids = [1, 2, 3, 4, 5, 6]
 
-            for _ in range(runs):
-                for v_id in valve_ids:
-                    # 1. Turn the specific LED ON
-                    steps.append({ "type": "OPEN_VALVE", "valveId": v_id })
-                    
-                    # 2. HOLD it on for 5 seconds
-                    # The C++ loop() will stay in the WAIT_MS case until this time passes
-                    steps.append({ "type": "WAIT_MS", "durationMs": step_dur })
-                    
-                    # 3. Turn the specific LED OFF
-                    steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
-                    
-                    # 4. Small gap (500ms) so you can see the transition between LEDs
-                    steps.append({ "type": "WAIT_MS", "durationMs": 500 })
+            # valve_ids = [1, 2, 3, 4, 5, 6]
+            for v_id in valve_ids:
+                # 1. Turn ON
+                steps.append({ "type": "OPEN_VALVE", "valveId": v_id })
+                
+                # 2. WAIT while ON
+                steps.append({ "type": "WAIT_MS", "durationMs": step_dur })
+                
+                # 3. Turn OFF
+                steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
+                
+                # 4. WAIT while OFF (so you see the gap before the next LED)
+                steps.append({ "type": "WAIT_MS", "durationMs": 500 })
+
+            # IMPORTANT: Explicitly ensure all valves are closed at the very end
+            steps.append({ "type": "EMIT_EVENT", "eventName": "all_valves_safing" })
+            for v_id in valve_ids:
+                steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
 
             steps.append({ "type": "CMD_ACK_COMPLETED" })
-
-            return {
-                "name": "sequential_led_test",
-                "cmd_id": cmd_id,
-                "steps": steps
-            }
-
 #   working
     # if cmd_name == "demo.run":
     #     runs = int(payload.get("runs", 3))
