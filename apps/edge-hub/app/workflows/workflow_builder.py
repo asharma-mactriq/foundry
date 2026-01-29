@@ -3,7 +3,9 @@
 # Converts high-level Edge commands (pressure.reprime, purge.nozzle, refill.start)
 # into low-level Workflow JSON for the runtime.
 #
-
+import uuid  # <--- Add this line
+import json
+# ... other imports
 from typing import Dict, Any
 
 
