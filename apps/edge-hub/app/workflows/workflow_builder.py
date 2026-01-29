@@ -220,17 +220,17 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         for _ in range(runs):
             # PRESSURIZE POT
             steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
-            steps.append({ "type": "WAIT_MS", "durationMs": 3000 })
+            steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
             steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
 
             # REFILL PAINT
             steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
-            steps.append({ "type": "WAIT_MS", "durationMs": 2000 })
+            steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
             steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
 
             # DISPENSE
             steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
-            steps.append({ "type": "WAIT_MS", "durationMs": 150 })
+            steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
             steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
 
         # COMPLETION (MANDATORY LAST STEP)
