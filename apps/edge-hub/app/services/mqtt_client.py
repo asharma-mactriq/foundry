@@ -35,14 +35,22 @@ class EdgeMQTT:
         self_ref = userdata
         print(f"[MQTT] on_connect → rc={rc}")
 
-        base = f"machine/{self_ref.machine_id}"
+        # base = f"machine/{self_ref.machine_id}"
+        # topics = [
+        #     f"{base}/workflow/complete",
+        #     f"{base}/workflow/event",
+        #     f"{base}/status",            # <-- ESP32 telemetry
+        #     f"devices/{self_ref.machine_id}/acks"    # <-- ACKS optional
+        #     f"{base}/acks"  
+        # ]
+
+        # Ensure these topics match the ESP32's publish topics
         topics = [
-            f"{base}/workflow/complete",
-            f"{base}/workflow/event",
-            f"{base}/status",            # <-- ESP32 telemetry
-            f"devices/{self_ref.machine_id}/acks"    # <-- ACKS optional
-            f"{base}/acks"  
-        ]
+            "machine/1/acks",            # Lifecycle & Step Acks
+            "machine/1/workflow/event",  # Custom workflow events
+            "machine/1/status",          # Telemetry
+        ]        
+
 
         for t in topics:
             client.subscribe(t)

@@ -56,6 +56,26 @@ class CommandExecutor:
             if cmd:
                 self._send(cmd)
 
+    def lifecycle_ack_received(self, data):
+            """
+            Processes command lifecycle events (received, started, completed).
+            'command.completed' is the trigger to unlock the queue.
+            """
+            cmd_id = data.get("commandId") or data.get("cmd_id")
+            event = data.get("event")
+
+            # 1. Validation: Only process if it matches our active command
+            if not self.current_cmd or self.current_cmd["cmd_id"] != cmd_id:
+                return
+
+            print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
+
+            # 2. Release Lock: If completed, allow the next command to be popped from queue
+            if event == "command.completed":
+                print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+                self.current_cmd = None
+                self.sent_at = None
+
     def _guard_command(self, cmd: dict) -> bool:
 
         BOOTSTRAP_COMMANDS = {
@@ -356,19 +376,37 @@ class CommandExecutor:
 
 
     def _check_timeout(self):
-        elapsed = time.time() - self.sent_at
-        timeout_s = 15.0  # 15 seconds
+            if not self.current_cmd:
+                return
+                
+            elapsed = time.time() - self.sent_at
+            
+            # If the ESP32 takes more than 15 seconds to finish a 
+            # workflow, it might have crashed. We release the lock
+            # so the next command in the queue can try to run.
+            if elapsed > 15.0: 
+                cmd_id = self.current_cmd["cmd_id"]
+                print(f"[EXECUTOR] TIMEOUT for {cmd_id} - Releasing Lock")
+                
+                command_store.update_status(cmd_id, "timeout", {"elapsed": elapsed})
+
+                self.current_cmd = None # <--- THIS IS KEY
+                self.sent_at = None
+                
+    # def _check_timeout(self):
+    #     elapsed = time.time() - self.sent_at
+    #     timeout_s = 5.0  # 15 seconds
 
         
 
-        if elapsed > timeout_s:
-            cmd_id = self.current_cmd["cmd_id"]
-            print(f"[EXECUTOR] TIMEOUT for {cmd_id}")
+    #     if elapsed > timeout_s:
+    #         cmd_id = self.current_cmd["cmd_id"]
+    #         print(f"[EXECUTOR] TIMEOUT for {cmd_id}")
 
-            command_store.update_status(cmd_id, "timeout", {"elapsed": elapsed})
+    #         command_store.update_status(cmd_id, "timeout", {"elapsed": elapsed})
 
-            self.current_cmd = None
-            self.sent_at = None
+    #         self.current_cmd = None
+    #         self.sent_at = None
     
     def send_command(self, cmd: dict):
         """
