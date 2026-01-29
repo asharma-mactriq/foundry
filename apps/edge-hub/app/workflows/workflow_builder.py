@@ -206,41 +206,77 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     # --------------------------------------------------
     # DEMO RUN (PARSER-SAFE)
     # --------------------------------------------------
+
     if cmd_name == "demo.run":
-        runs = int(payload.get("runs", 3))
-        runs = max(1, min(runs, 5))   # HARD LIMIT (important)
+            runs = int(payload.get("runs", 1))
+            step_dur = int(payload.get("duration_ms", 5000))
 
-        steps = []
+            steps = []
+            steps.append({ "type": "CMD_ACK_RECEIVED" })
+            steps.append({ "type": "CMD_ACK_STARTED" })
+            
+            # We iterate through valve IDs 1 to 6 as defined in your HAL_ESP::mapPins()
+            valve_ids = [1, 2, 3, 4, 5, 6]
 
-        # ACK SEQUENCE (MANDATORY)
-        steps.append({ "type": "CMD_ACK_RECEIVED" })
-        steps.append({ "type": "CMD_ACK_STARTED" })
-        steps.append({ "type": "EMIT_EVENT", "eventName": "demo_begin" })
+            for _ in range(runs):
+                for v_id in valve_ids:
+                    # 1. Turn the specific LED ON
+                    steps.append({ "type": "OPEN_VALVE", "valveId": v_id })
+                    
+                    # 2. HOLD it on for 5 seconds
+                    # The C++ loop() will stay in the WAIT_MS case until this time passes
+                    steps.append({ "type": "WAIT_MS", "durationMs": step_dur })
+                    
+                    # 3. Turn the specific LED OFF
+                    steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
+                    
+                    # 4. Small gap (500ms) so you can see the transition between LEDs
+                    steps.append({ "type": "WAIT_MS", "durationMs": 500 })
 
-        for _ in range(runs):
-            # PRESSURIZE POT
-            steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
-            steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
-            steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
+            steps.append({ "type": "CMD_ACK_COMPLETED" })
 
-            # REFILL PAINT
-            steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
-            steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
-            steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
+            return {
+                "name": "sequential_led_test",
+                "cmd_id": cmd_id,
+                "steps": steps
+            }
 
-            # DISPENSE
-            steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
-            steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
-            steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
+#   working
+    # if cmd_name == "demo.run":
+    #     runs = int(payload.get("runs", 3))
+    #     runs = max(1, min(runs, 5))   # HARD LIMIT (important)
 
-        # COMPLETION (MANDATORY LAST STEP)
-        steps.append({ "type": "CMD_ACK_COMPLETED" })
+    #     steps = []
 
-        return {
-            "name": "demo_run",
-            "cmd_id": cmd_id,
-            "steps": steps
-        }
+    #     # ACK SEQUENCE (MANDATORY)
+    #     steps.append({ "type": "CMD_ACK_RECEIVED" })
+    #     steps.append({ "type": "CMD_ACK_STARTED" })
+    #     steps.append({ "type": "EMIT_EVENT", "eventName": "demo_begin" })
+
+    #     for _ in range(runs):
+    #         # PRESSURIZE POT
+    #         steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
+    #         steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
+    #         steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
+
+    #         # REFILL PAINT
+    #         steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
+    #         steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
+    #         steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
+
+    #         # DISPENSE
+    #         steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
+    #         steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
+    #         steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
+
+    #     # COMPLETION (MANDATORY LAST STEP)
+    #     steps.append({ "type": "CMD_ACK_COMPLETED" })
+
+    #     return {
+    #         "name": "demo_run",
+    #         "cmd_id": cmd_id,
+    #         "steps": steps
+    #     }
 
     # if cmd_name == "demo.run":
     #     runs = payload.get("runs", 3)
