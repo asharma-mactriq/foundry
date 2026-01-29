@@ -70,11 +70,26 @@ class CommandExecutor:
 
             print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
 
+            # Stop the Scheduler from resending the command once the device acknowledges it
+            if event == "command.received":
+                command_store.update_status(cmd_id, "acked", data)
+                
+            elif event == "command.started":
+                command_store.update_status(cmd_id, "started", data)
+            # ---------------------------
+
             # 2. Release Lock: If completed, allow the next command to be popped from queue
             if event == "command.completed":
                 print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+                # Mark as completed in DB so history is accurate
+                command_store.update_status(cmd_id, "completed", data)
                 self.current_cmd = None
                 self.sent_at = None
+            # # 2. Release Lock: If completed, allow the next command to be popped from queue
+            # if event == "command.completed":
+            #     print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+            #     self.current_cmd = None
+            #     self.sent_at = None
 
     def _guard_command(self, cmd: dict) -> bool:
 
