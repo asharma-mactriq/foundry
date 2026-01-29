@@ -384,7 +384,7 @@ class CommandExecutor:
             # If the ESP32 takes more than 15 seconds to finish a 
             # workflow, it might have crashed. We release the lock
             # so the next command in the queue can try to run.
-            if elapsed > 15.0: 
+            if elapsed > 60.0: 
                 cmd_id = self.current_cmd["cmd_id"]
                 print(f"[EXECUTOR] TIMEOUT for {cmd_id} - Releasing Lock")
                 
