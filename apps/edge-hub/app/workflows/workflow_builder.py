@@ -209,35 +209,87 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     # DEMO RUN (PARSER-SAFE)
     # --------------------------------------------------
 
-    if cmd_name == "demo.run":
-            runs = int(payload.get("runs", 1))
-            step_dur = int(payload.get("duration_ms", 5000))
-            steps = []
+    # if cmd_name == "demo.run":
+    #         runs = int(payload.get("runs", 1))
+    #         step_dur = int(payload.get("duration_ms", 5000))
+    #         steps = []
             
+    #         steps.append({ "type": "CMD_ACK_RECEIVED" })
+    #         steps.append({ "type": "CMD_ACK_STARTED" })
+            
+    #         valve_ids = [1, 2, 3, 4, 5, 6]
+
+    #         for _ in range(runs): # Wrap the sequence in the runs loop
+    #             for v_id in valve_ids:
+    #                 steps.append({ "type": "OPEN_VALVE", "valveId": v_id })
+    #                 steps.append({ "type": "WAIT_MS", "durationMs": step_dur })
+    #                 steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
+    #                 steps.append({ "type": "WAIT_MS", "durationMs": 500 })
+
+    #         # Safing steps
+    #         for v_id in valve_ids:
+    #             steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
+
+    #         steps.append({ "type": "CMD_ACK_COMPLETED" })
+
+    #         # MUST RETURN THE OBJECT HERE
+    #         return {
+    #             "workflow_id": str(uuid.uuid4()),
+    #             "name": "sequential_led_test",
+    #             "steps": steps
+    #         }
+
+    # up is proper
+    if cmd_name == "demo.run":
+            valves = DEVICE_MAP["valves"]
+            refill_time = int(payload.get("refill_ms", 3000))
+            prime_time = int(payload.get("prime_ms", 4000))
+            
+            steps = []
             steps.append({ "type": "CMD_ACK_RECEIVED" })
             steps.append({ "type": "CMD_ACK_STARTED" })
+
+            # --- PHASE 1: CREATE PRESSURE DIFFERENTIAL ---
+            # Vent the Pot and Pressurize the Reservoir simultaneously
+            steps.append({"type": "EMIT_EVENT", "eventName": "prep_differential_start"})
+            steps.append({"type": "OPEN_VALVE", "valveId": valves["pot_air_out"]}) # Valve 4
+            steps.append({"type": "OPEN_VALVE", "valveId": valves["res_air_in"]})  # Valve 5
+            steps.append({"type": "WAIT_MS", "durationMs": 2000}) 
+
+            # --- PHASE 2: PRESSURE-ASSISTED REFILL ---
+            # Open the paint line while maintaining the differential
+            steps.append({"type": "EMIT_EVENT", "eventName": "refill_active"})
+            steps.append({"type": "OPEN_VALVE", "valveId": valves["paint_inlet"]}) # Valve 2
+            steps.append({"type": "WAIT_MS", "durationMs": refill_time})
             
-            valve_ids = [1, 2, 3, 4, 5, 6]
+            # Close the paint line FIRST, then stop the air
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["paint_inlet"]})
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["res_air_in"]})
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["pot_air_out"]})
 
-            for _ in range(runs): # Wrap the sequence in the runs loop
-                for v_id in valve_ids:
-                    steps.append({ "type": "OPEN_VALVE", "valveId": v_id })
-                    steps.append({ "type": "WAIT_MS", "durationMs": step_dur })
-                    steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
-                    steps.append({ "type": "WAIT_MS", "durationMs": 500 })
+            # --- PHASE 3: PRIME THE POT FOR WORK ---
+            # Now that it's full, bring the pot up to working pressure
+            steps.append({"type": "EMIT_EVENT", "eventName": "pot_priming"})
+            steps.append({"type": "OPEN_VALVE", "valveId": valves["pot_air_in"]})  # Valve 3
+            steps.append({"type": "WAIT_MS", "durationMs": prime_time})
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["pot_air_in"]})
 
-            # Safing steps
-            for v_id in valve_ids:
-                steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
+            # --- PHASE 4: SAFE THE RESERVOIR ---
+            # Vent the remaining pressure from the reservoir
+            steps.append({"type": "OPEN_VALVE", "valveId": valves["res_air_out"]}) # Valve 6
+            steps.append({"type": "WAIT_MS", "durationMs": 1000})
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["res_air_out"]})
 
+            steps.append({"type": "EMIT_EVENT", "eventName": "machine_ready_state"})
             steps.append({ "type": "CMD_ACK_COMPLETED" })
 
-            # MUST RETURN THE OBJECT HERE
             return {
                 "workflow_id": str(uuid.uuid4()),
-                "name": "sequential_led_test",
+                "name": "pressure_assisted_prep",
+                "cmd_id": cmd_id,
                 "steps": steps
             }
+
 #   working
     # if cmd_name == "demo.run":
     #     runs = int(payload.get("runs", 3))
