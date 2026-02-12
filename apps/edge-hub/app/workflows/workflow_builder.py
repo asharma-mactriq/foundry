@@ -253,19 +253,25 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             # Vent the Pot and Pressurize the Reservoir simultaneously
             steps.append({"type": "EMIT_EVENT", "eventName": "prep_differential_start"})
             steps.append({"type": "OPEN_VALVE", "valveId": valves["pot_air_out"]}) # Valve 4
-            steps.append({"type": "OPEN_VALVE", "valveId": valves["res_air_in"]})  # Valve 5
             steps.append({"type": "WAIT_MS", "durationMs": 2000}) 
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["pot_air_out"]})
+            steps.append({"type": "WAIT_MS", "durationMs": 1000}) 
+
+            steps.append({"type": "OPEN_VALVE", "valveId": valves["res_air_in"]})  # Valve 5
+            steps.append({"type": "WAIT_MS", "durationMs": 4000}) 
+            steps.append({"type": "CLOSE_VALVE", "valveId": valves["res_air_in"]})
+            steps.append({"type": "WAIT_MS", "durationMs": 1000}) 
 
             # --- PHASE 2: PRESSURE-ASSISTED REFILL ---
             # Open the paint line while maintaining the differential
             steps.append({"type": "EMIT_EVENT", "eventName": "refill_active"})
             steps.append({"type": "OPEN_VALVE", "valveId": valves["paint_inlet"]}) # Valve 2
             steps.append({"type": "WAIT_MS", "durationMs": refill_time})
-            
-            # Close the paint line FIRST, then stop the air
             steps.append({"type": "CLOSE_VALVE", "valveId": valves["paint_inlet"]})
-            steps.append({"type": "CLOSE_VALVE", "valveId": valves["res_air_in"]})
-            steps.append({"type": "CLOSE_VALVE", "valveId": valves["pot_air_out"]})
+            steps.append({"type": "WAIT_MS", "durationMs": 1000}) 
+
+            # Close the paint line FIRST, then stop the air
+            # steps.append({"type": "CLOSE_VALVE", "valveId": valves["pot_air_out"]})
 
             # --- PHASE 3: PRIME THE POT FOR WORK ---
             # Now that it's full, bring the pot up to working pressure
@@ -273,12 +279,14 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             steps.append({"type": "OPEN_VALVE", "valveId": valves["pot_air_in"]})  # Valve 3
             steps.append({"type": "WAIT_MS", "durationMs": prime_time})
             steps.append({"type": "CLOSE_VALVE", "valveId": valves["pot_air_in"]})
+            steps.append({"type": "WAIT_MS", "durationMs": 1000}) 
 
             # --- PHASE 4: SAFE THE RESERVOIR ---
             # Vent the remaining pressure from the reservoir
             steps.append({"type": "OPEN_VALVE", "valveId": valves["res_air_out"]}) # Valve 6
             steps.append({"type": "WAIT_MS", "durationMs": 1000})
             steps.append({"type": "CLOSE_VALVE", "valveId": valves["res_air_out"]})
+            steps.append({"type": "WAIT_MS", "durationMs": 1000}) 
 
             steps.append({"type": "EMIT_EVENT", "eventName": "machine_ready_state"})
             steps.append({ "type": "CMD_ACK_COMPLETED" })
