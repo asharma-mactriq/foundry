@@ -29,8 +29,8 @@ DEVICE_MAP = {
     "valves": {
         "dispense": 1,
         "paint_inlet": 2,
-        "pot_air_in": 3,
-        "pot_air_out": 4,
+        "pot_air_in": 4,
+        "pot_air_out": 3,
         "res_air_in": 5,
         "res_air_out": 6,
     }
