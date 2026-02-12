@@ -4,7 +4,7 @@ from app.state.machine_state import machine_state_manager
 from app.commands.helpers import create_and_queue_command
 
 TARGET_PRESSURE = 1.8
-MIN_POT_VOLUME = 800
+MIN_POT_VOLUME = 1.0
 
 class StartupOrchestrator:
     def process(self):
