@@ -3,7 +3,7 @@
     "id": "dispense_on_stable_gap",
     "priority": 100,
     "condition": "machine['phase'] == 'rest_dispense_edge' and machine['plate_stable'] == True and machine['dispense_fired_for_gap'] == False and system.phase == 'READY'",
-    "actions": [{ "type": "dispense.start" }]
+    "actions": [{ "type": "dispense.open", "params": {"open_ms": 120} }]
   },
 
   {
@@ -18,7 +18,7 @@
     "priority": 120,
     "cooldown_ms": 10000,
     "condition": "machine['pressure'] < 1.4 and machine['phase'] == 'rest_dispense_edge'",
-    "actions": [{ "type": "pressure_reprime" }]
+    "actions": [{ "type": "pressure.reprime" }]
   },
 
   {
@@ -32,7 +32,7 @@
     "id": "stop_on_paint_empty",
     "priority": 200,
     "condition": "material['paint_confidence'] == 'LOW'",
-    "actions": [{ "type": "stop_program" }]
+    "actions": [{ "type": "program.stop" }]
   },
 
   {
@@ -46,7 +46,7 @@
   {
     "id": "paint_low_warning",
     "priority": 200,
-    "condition": "material['estimated_pot_volume_ml'] < 500",
+    "condition": "material['current_pot_kg'] < machine['pot_min_kg']",
     "actions": [{
       "type": "emit_alert",
       "params": {
