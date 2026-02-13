@@ -3,7 +3,7 @@
   "id": "dispense_on_gap",
   "priority": 100,
   "cooldown_ms": 500,
-  "condition": "program.running == True and mode.process == 'tracking' and machine.gap == 1 and machine.pressure >= 0",
+  "condition": "program.running == True and mode['process'] == 'tracking' and machine.gap == 1 and machine.pressure >= 0",
   "actions": [{
     "type": "command",
     "params": {
