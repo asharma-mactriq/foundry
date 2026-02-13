@@ -30,20 +30,20 @@ class StartupOrchestrator:
             return
 
         # 2. Ensure pressure
-        if ms.pressure < TARGET_PRESSURE:
-            create_and_queue_command(
-                name="pressure.reprime",
-                payload={"duration_ms": 3000, "threshold": TARGET_PRESSURE - 0.2}
-            )
-            return
+        # if ms.pressure < TARGET_PRESSURE:
+        #     create_and_queue_command(
+        #         name="pressure.reprime",
+        #         payload={"duration_ms": 3000, "threshold": TARGET_PRESSURE - 0.2}
+        #     )
+        #     return
 
-        # 3. Prime dispense line (into waste tray)
-        if not mat.dispense_line_primed:
-            create_and_queue_command(
-                name="dispense.open",
-                payload={"open_ms": 200}
-            )
-            return
+        # # 3. Prime dispense line (into waste tray)
+        # if not mat.dispense_line_primed:
+        #     create_and_queue_command(
+        #         name="dispense.open",
+        #         payload={"open_ms": 200}
+        #     )
+        #     return
 
 
         # 4. READY
