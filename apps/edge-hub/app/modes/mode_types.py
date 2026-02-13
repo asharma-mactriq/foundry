@@ -12,6 +12,8 @@ class ProcessMode(str, Enum):
     window_detected = "window_detected"
     dispensing = "dispensing"
     refill = "refill"
+    pressurising = "pressurising"
+
 
 class PressureMode(str, Enum):
     normal = "normal"
