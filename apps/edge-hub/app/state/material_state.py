@@ -17,6 +17,10 @@ class MaterialState:
     current_pot_kg: float = 0.0
     estimated_dispensed_kg: float = 0.0
 
+    pot_min_kg: float = 0.0
+    res_min_kg: float = 0.0
+
+
     paint_confidence: str = "UNKNOWN"      # HIGH | LOW | UNKNOWN
     dispense_confidence: str = "UNKNOWN"   # HIGH | LOW | UNKNOWN
     

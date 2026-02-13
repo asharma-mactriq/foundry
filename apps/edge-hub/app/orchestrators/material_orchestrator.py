@@ -17,6 +17,13 @@ class MaterialOrchestrator:
         if "pot_pressure" in telemetry:
             ms.pot_pressure = telemetry["pot_pressure"]
 
+        if "pot_min_kg" in telemetry:
+            ms.pot_min_kg = telemetry["pot_min_kg"]
+
+        if "res_min_kg" in telemetry:
+            ms.res_min_kg = telemetry["res_min_kg"]
+
+
         
 
         # -------------------------
@@ -39,6 +46,8 @@ class MaterialOrchestrator:
 
             if prev == 0:
                 ms.current_pot_kg = current
+                ms.estimated_dispensed_kg = 0.0
+
             else:
                 delta = current - prev
 
@@ -61,10 +70,17 @@ class MaterialOrchestrator:
         # -------------------------
         # CONFIDENCE
         # -------------------------
-        if ms.current_pot_kg < MIN_USABLE_VOLUME:
+        threshold = ms.pot_min_kg if ms.pot_min_kg > 0 else MIN_USABLE_VOLUME
+
+        if ms.current_pot_kg < threshold:
             ms.paint_confidence = "LOW"
         else:
             ms.paint_confidence = "HIGH"
+
+        # if ms.current_pot_kg < MIN_USABLE_VOLUME:
+        #     ms.paint_confidence = "LOW"
+        # else:
+        #     ms.paint_confidence = "HIGH"
 
         ms.last_event_ts = now
         return ms
@@ -77,28 +93,31 @@ class MaterialOrchestrator:
         if event == "reprime_done":
             ms.dispense_line_primed = True
             ms.last_event = event
-            ms.last_event_ts = time.time()
+            ms.last_event_ts = now
 
         if event == "refill_done":
             ms.pot_filled = True
-            ms.pot_fill_ts = time.time()
+            ms.pot_fill_ts = now
             ms.current_pot_kg = POT_CAPACITY_KG
             ms.last_event = event
-            ms.last_event_ts = time.time()
+            ms.last_event_ts = now
 
         if event == "dispense_start":
             ms.dispensing_active = True
-            ms.dispense_start_ts = time.time()
+            ms.dispense_start_ts = now
             ms.last_flow_ts = now
-
+            ms.last_event = event
+            ms.last_event_ts = now
 
         if event == "dispense_stop":
             ms.dispensing_active = False
             ms.last_flow_ts = 0
+            ms.last_event = event
+            ms.last_event_ts = now
 
         if event == "dispense_manual_done":
             ms.dispense_line_primed = True
             ms.last_event = event
-            ms.last_event_ts = time.time()
+            ms.last_event_ts = now
 
 material_orchestrator = MaterialOrchestrator()
