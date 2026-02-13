@@ -2,7 +2,8 @@
   {
     "id": "dispense_on_stable_gap",
     "priority": 100,
-    "condition": "machine.phase == 'rest_dispense_edge' and machine.plate_stable == True and machine.dispense_fired_for_gap == False and program.running == True",
+    "cooldown_ms":5000,
+    "condition": "program.running == True",
     "actions": [{
       "type": "command",
       "params": {
@@ -41,7 +42,7 @@
     "id": "auto_refill",
     "priority": 150,
     "cooldown_ms": 15000,
-    "condition": "material.current_pot_kg < 2 and material.paint_confidence == 'HIGH' and machine.phase == 'rest_dispense_edge' and program.running == True",
+    "condition": "material.current_pot_kg < 2 and material.paint_confidence == 'HIGH'  and program.running == True",
     "actions": [{
       "type": "command",
       "params": {
