@@ -1,9 +1,8 @@
-
 [
   {
     "id": "dispense_on_stable_gap",
     "priority": 100,
-    "condition": "machine.phase == 'rest_dispense_edge' and machine.plate_stable == True and machine.dispense_fired_for_gap == False and system.phase == SystemPhase.READY",
+    "condition": "machine.phase == 'rest_dispense_edge' and machine.plate_stable == True and machine.dispense_fired_for_gap == False and system.phase.name == 'READY'",
     "actions": [{
       "type": "command",
       "params": {
@@ -13,47 +12,35 @@
     }]
   },
 
-
   {
     "id": "stop_on_high_pressure",
     "priority": 150,
-    "condition": "machine['pressure'] > 1.5",
-    "actions": [{ "type": "stop_program" }]
+    "condition": "machine.pressure > 1.5",
+    "actions": [{
+      "type": "command",
+      "params": { "name": "program.stop" }
+    }]
   },
 
   {
     "id": "auto_reprime_pressure",
     "priority": 120,
     "cooldown_ms": 10000,
-    "condition": "machine['pressure'] < 0.5 and machine['phase'] == 'rest_dispense_edge'",
-    "actions": [{ "type": "pressure.reprime" }]
+    "condition": "machine.pressure < 0.5 and machine.phase == 'rest_dispense_edge'",
+    "actions": [{
+      "type": "command",
+      "params": {
+        "name": "pressure.reprime",
+        "payload": { "duration_ms": 3000 }
+      }
+    }]
   },
 
   {
-    "id": "auto_refill_when_low",
-    "priority": 120,
-    "condition": "material['pot_filled'] == False and material['reservoir_has_paint'] == True",
-    "actions": [{ "type": "refill.start" }]
-  },
-
-  {
-  "id": "stop_on_paint_empty",
-  "priority": 200,
-  "condition": "material.paint_confidence == 'LOW'",
-  "actions": [{
-    "type": "command",
-    "params": {
-      "name": "program.stop"
-    }
-  }]
-},
-
-
-    {
     "id": "auto_refill",
     "priority": 150,
     "cooldown_ms": 15000,
-    "condition": "material.estimated_pot_volume_ml < 2 and machine.phase == 'rest_dispense_edge'",
+    "condition": "material.current_pot_kg < 2 and machine.phase == 'rest_dispense_edge'",
     "actions": [{
       "type": "command",
       "params": {
@@ -63,11 +50,20 @@
     }]
   },
 
+  {
+    "id": "stop_on_paint_empty",
+    "priority": 200,
+    "condition": "material.paint_confidence == 'LOW'",
+    "actions": [{
+      "type": "command",
+      "params": { "name": "program.stop" }
+    }]
+  },
 
   {
     "id": "paint_low_warning",
-    "priority": 200,
-    "condition": "material['current_pot_kg'] < machine['pot_min_kg']",
+    "priority": 50,
+    "condition": "material.current_pot_kg < machine.pot_min_kg",
     "actions": [{
       "type": "emit_alert",
       "params": {
