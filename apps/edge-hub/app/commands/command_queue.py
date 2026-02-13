@@ -53,4 +53,4 @@ class CommandQueue:
 #         return None
 
 
-# command_queue = CommandQueue()
+command_queue = CommandQueue()
