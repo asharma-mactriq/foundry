@@ -66,9 +66,13 @@ class StateOrchestrator:
         rule_engine = get_rule_engine()
         fired = rule_engine.evaluate_all(
             raw=raw,
-            machine=ms.__dict__,
-            program=ps.serialize(),
-            material=mat.__dict__,
+            machine=ms,
+            program=ps,
+            material=mat,
+
+            # machine=ms.__dict__,
+            # program=ps.serialize(),
+            # material=mat.__dict__,
         )
         if fired:
             print("[RULES] Fired:", fired)
