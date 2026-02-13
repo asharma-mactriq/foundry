@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from unicodedata import name
 from app.commands.helpers import create_and_queue_command
 from app.state.system_state import system_state, SystemPhase
+from app.modes.mode_manager import mode_manager   # adjust path if needed
 
 # If you keep a module-style global 'app' like FastAPI app.state, import it:
 # from fastapi import current_app as app  # only available inside request context; use safe access in startup
@@ -226,7 +227,8 @@ class RuleEngine:
             "machine": machine if machine is not None else {},
             "program": program if program is not None else {},
             "material": material if material is not None else {},
-            "system": system_state
+            "system": system_state,
+            "mode": mode_manager.get()  
         }
         fired = []
         # Rules ordered by priority desc (higher first), then id
