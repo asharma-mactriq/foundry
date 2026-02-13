@@ -29,7 +29,7 @@
     "id": "auto_reprime_pressure",
     "priority": 120,
     "cooldown_ms": 10000,
-    "condition": "machine.pressure < -0.2  and program.running == True",
+    "condition": "machine.pressure < 0.2  and program.running == True",
     "actions": [{
       "type": "command",
       "params": {
