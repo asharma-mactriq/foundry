@@ -2,7 +2,7 @@
   {
     "id": "dispense_on_stable_gap",
     "priority": 100,
-    "condition": "machine.phase == 'rest_dispense_edge' and machine.plate_stable == True and machine.dispense_fired_for_gap == False and system.phase == 'READY' and program.running == True",
+    "condition": "machine.phase == 'rest_dispense_edge' and machine.plate_stable == True and machine.dispense_fired_for_gap == False and program.running == True",
     "actions": [{
       "type": "command",
       "params": {
