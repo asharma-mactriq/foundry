@@ -350,8 +350,22 @@ class CommandExecutor:
 
         # 2. Convert to workflow
         from app.workflows.workflow_builder import build_workflow_for_command
+        # wf = build_workflow_for_command(cmd["name"], cmd["payload"], cmd["cmd_id"])
+        # json_wf = json.dumps(wf)
+
         wf = build_workflow_for_command(cmd["name"], cmd["payload"], cmd["cmd_id"])
+
+        if not wf:
+            print(f"[EXECUTOR] Workflow ignored (idempotent): {cmd['name']}")
+            command_store.update_status(
+                cmd["cmd_id"],
+                "ignored",
+                {"reason": "idempotent_noop"}
+            )
+            return
+
         json_wf = json.dumps(wf)
+
 
         # 3. Set active command
         self.current_cmd = cmd

@@ -7,6 +7,7 @@ import uuid  # <--- Add this line
 import json
 # ... other imports
 from typing import Dict, Any
+from app.state.program_state import program_state
 
 
 # ----------------------------------------------------------------------
@@ -91,6 +92,14 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         }
 
     if cmd_name == "program.stop":
+
+        # -----------------------------
+        # IDEMPOTENCY PROTECTION
+        # -----------------------------
+        if not program_state.running:
+            print("[WORKFLOW] program.stop ignored — already stopped")
+            return None
+
         return {
             "name": "program_stop",
             "cmd_id": cmd_id,
@@ -102,7 +111,21 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
                 {"type": "EMIT_EVENT", "eventName": "program_stop_done"},
                 { "type": "CMD_ACK_COMPLETED" }
             ]
-    }
+        }
+
+    # if cmd_name == "program.stop":
+    #     return {
+    #         "name": "program_stop",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" },
+    #             {"type": "EMIT_EVENT", "eventName": "program_stop_begin"},
+    #             {"type": "WAIT_MS", "durationMs": 50},
+    #             {"type": "EMIT_EVENT", "eventName": "program_stop_done"},
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    # }
 
     if cmd_name == "program.next_pass":
         return {
@@ -202,44 +225,6 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             ]
         }
     
-        # --------------------------------------------------
-    # DEMO RUN (BOOTSTRAP SAFE)
-    # --------------------------------------------------
-    # --------------------------------------------------
-    # DEMO RUN (PARSER-SAFE)
-    # --------------------------------------------------
-
-    # if cmd_name == "demo.run":
-    #         runs = int(payload.get("runs", 1))
-    #         step_dur = int(payload.get("duration_ms", 5000))
-    #         steps = []
-            
-    #         steps.append({ "type": "CMD_ACK_RECEIVED" })
-    #         steps.append({ "type": "CMD_ACK_STARTED" })
-            
-    #         valve_ids = [1, 2, 3, 4, 5, 6]
-
-    #         for _ in range(runs): # Wrap the sequence in the runs loop
-    #             for v_id in valve_ids:
-    #                 steps.append({ "type": "OPEN_VALVE", "valveId": v_id })
-    #                 steps.append({ "type": "WAIT_MS", "durationMs": step_dur })
-    #                 steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
-    #                 steps.append({ "type": "WAIT_MS", "durationMs": 500 })
-
-    #         # Safing steps
-    #         for v_id in valve_ids:
-    #             steps.append({ "type": "CLOSE_VALVE", "valveId": v_id })
-
-    #         steps.append({ "type": "CMD_ACK_COMPLETED" })
-
-    #         # MUST RETURN THE OBJECT HERE
-    #         return {
-    #             "workflow_id": str(uuid.uuid4()),
-    #             "name": "sequential_led_test",
-    #             "steps": steps
-    #         }
-
-    # up is proper
     if cmd_name == "demo.run":
             valves = DEVICE_MAP["valves"]
             refill_time = int(payload.get("refill_ms", 3000))
@@ -308,83 +293,6 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
                 "cmd_id": cmd_id,
                 "steps": steps
             }
-
-#   working
-    # if cmd_name == "demo.run":
-    #     runs = int(payload.get("runs", 3))
-    #     runs = max(1, min(runs, 5))   # HARD LIMIT (important)
-
-    #     steps = []
-
-    #     # ACK SEQUENCE (MANDATORY)
-    #     steps.append({ "type": "CMD_ACK_RECEIVED" })
-    #     steps.append({ "type": "CMD_ACK_STARTED" })
-    #     steps.append({ "type": "EMIT_EVENT", "eventName": "demo_begin" })
-
-    #     for _ in range(runs):
-    #         # PRESSURIZE POT
-    #         steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
-    #         steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
-    #         steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] })
-
-    #         # REFILL PAINT
-    #         steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
-    #         steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
-    #         steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] })
-
-    #         # DISPENSE
-    #         steps.append({ "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
-    #         steps.append({ "type": "WAIT_MS", "durationMs": 5000 })
-    #         steps.append({ "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] })
-
-    #     # COMPLETION (MANDATORY LAST STEP)
-    #     steps.append({ "type": "CMD_ACK_COMPLETED" })
-
-    #     return {
-    #         "name": "demo_run",
-    #         "cmd_id": cmd_id,
-    #         "steps": steps
-    #     }
-
-    # if cmd_name == "demo.run":
-    #     runs = payload.get("runs", 3)
-
-    #     steps = [
-    #         { "type": "CMD_ACK_RECEIVED" },
-    #         { "type": "CMD_ACK_STARTED" },
-    #         { "type": "EMIT_EVENT", "eventName": "demo_begin" },
-    #     ]
-
-    #     for i in range(runs):
-    #         steps.extend([
-    #         { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_start" },
-
-    #         # Pressurize pot
-    #         { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
-    #         { "type": "WAIT_MS", "durationMs": 3000 },
-    #         { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"] },
-
-    #         # Refill paint
-    #         { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
-    #         { "type": "WAIT_MS", "durationMs": 2000 },
-    #         { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"] },
-
-    #         # Dispense
-    #         { "type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
-    #         { "type": "WAIT_MS", "durationMs": 150 },
-    #         { "type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"] },
-
-    #         { "type": "EMIT_EVENT", "eventName": f"cycle_{i+1}_done" },
-    #     ])
-
-    #     steps.append({ "type": "CMD_ACK_COMPLETED" })
-
-    #     return {
-    #         "name": "demo_run",
-    #         "cmd_id": cmd_id,
-    #         "steps": steps
-    #     }
-
 
     # FALLBACK
     return {

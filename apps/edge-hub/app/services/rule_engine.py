@@ -165,21 +165,17 @@ class RuleEngine:
 
         if not name:
             return False
-        
-        machine_state = ctx.get("machine")
-
-        if name == "dispense.open" and isinstance(machine_state, dict):
-            machine_state["dispense_fired_for_gap"] = True
-
 
         try:
-            create_and_queue_command(
+            cmd_id = create_and_queue_command(
                 name=name,
                 payload=payload,
-                execution="auto"
+                execution="auto"   # mark rule-originated command
             )
-            print("[RULES] queued command:", name)
+
+            print(f"[RULES] queued command: {name} ({cmd_id})")
             return True
+
         except Exception as e:
             print("[RULES] command error:", e)
             return False
@@ -252,7 +248,7 @@ class RuleEngine:
 
             if ok:
                 try:
-                    self._execute_rule_actions(rule, raw, machine, program)
+                    self._execute_rule_actions(rule, raw, machine, program, material)
                     fired.append(rule.id)
                     rule.mark_fired()
                 except Exception as e:
@@ -261,7 +257,7 @@ class RuleEngine:
         return fired
 
     # ---------- actions ----------
-    def _execute_rule_actions(self, rule: Rule, raw, machine, program):
+    def _execute_rule_actions(self, rule: Rule, raw, machine, program, material):
         audit = {
             "ts": int(time.time() * 1000),
             "rule_id": rule.id,
@@ -277,7 +273,7 @@ class RuleEngine:
                 print(_LOG_PREFIX, "unknown action type", t)
                 continue
             # action receives parameters and context
-            res = fn(a.get("params", {}), raw=raw, machine=machine, program=program)
+            res = fn(a.get("params", {}), raw=raw, machine=machine, program=program, material=material)
             audit["actions"].append({"type": t, "params": a.get("params", {}), "result": bool(res)})
         # publish audit to mqtt if available
         try:
