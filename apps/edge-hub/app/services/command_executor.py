@@ -25,7 +25,7 @@ from app.modes.mode_manager import mode_manager
 from app.state.system_state import system_state, SystemPhase
 
 
-MIN_USABLE_VOLUME = 300   # ml — conservative
+MIN_USABLE_KG = 0.3  # or whatever your real safety threshold is
 
 class CommandExecutor:
     def __init__(self, mqtt_client, tick_ms=50):
@@ -54,7 +54,13 @@ class CommandExecutor:
             # fetch next command from queue
             cmd = command_queue.pop_valid()
             if cmd:
-                self._send(cmd)
+                try:
+                    self._send(cmd)
+                except Exception as e:
+                    print("[EXECUTOR CRASH]", e)
+                    import traceback
+                    traceback.print_exc()
+
 
     def lifecycle_ack_received(self, data):
             """
@@ -139,7 +145,7 @@ class CommandExecutor:
             print(f"  reason     : {reason}")
             print(f"  phase      : {ms.phase}")
             print(f"  pressure   : {ms.pressure}")
-            print(f"  pot_ml     : {mat.estimated_pot_volume_ml}")
+            print(f"  pot_ml     : {mat.current_pot_kg}")
             print(f"  program    : running={ps.running}")
             print(f"  fault      : {modes['fault']}\n")
 
@@ -149,7 +155,7 @@ class CommandExecutor:
                     "reason": reason,
                     "phase": str(ms.phase),
                     "pressure": ms.pressure,
-                    "pot_volume_ml": mat.estimated_pot_volume_ml,
+                    "pot_volume_ml": mat.current_pot_kg,
                     "program_running": ps.running,
                     "fault": modes["fault"],
                 }
@@ -190,7 +196,7 @@ class CommandExecutor:
             if not mat.dispense_line_primed:
                 return block("dispense line not primed")
 
-            if mat.estimated_pot_volume_ml <= MIN_USABLE_VOLUME:
+            if mat.current_pot_kg <= MIN_USABLE_KG:
                 return block("insufficient paint in pot")
 
         # --------------------------------------------------
