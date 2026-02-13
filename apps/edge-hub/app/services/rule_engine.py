@@ -4,6 +4,7 @@ import json
 import threading
 import traceback
 from typing import Any, Dict, List
+from unicodedata import name
 from app.commands.helpers import create_and_queue_command
 from app.state.system_state import system_state, SystemPhase
 
@@ -142,16 +143,47 @@ class RuleEngine:
         self.executor = executor  # CommandExecutor instance
         self.workflow_executor = workflow_executor
         # action mapping
+        # self.action_map = {
+        #     "open_valve": self._action_open_valve,
+        #     "close_valve": self._action_close_valve,
+        #     "start_workflow": self._action_start_workflow,
+        #     "stop_workflow": self._action_stop_workflow,
+        #     "stop_program": self._action_stop_program,
+        #     "publish_alert": self._action_publish_alert,
+        #     "pressure_reprime": self._action_pressure_reprime,
+        #     "nop": lambda *a, **k: None,
+        # }
+
         self.action_map = {
-            "open_valve": self._action_open_valve,
-            "close_valve": self._action_close_valve,
-            "start_workflow": self._action_start_workflow,
-            "stop_workflow": self._action_stop_workflow,
-            "stop_program": self._action_stop_program,
-            "publish_alert": self._action_publish_alert,
-            "pressure_reprime": self._action_pressure_reprime,
-            "nop": lambda *a, **k: None,
+            "command": self._action_command,
+            "emit_alert": self._action_emit_alert,
         }
+
+    def _action_command(self, params, **ctx):
+        name = params.get("name")
+        payload = params.get("payload", {})
+
+        if not name:
+            return False
+        
+        machine_state = ctx.get("machine")
+
+        if name == "dispense.open" and isinstance(machine_state, dict):
+            machine_state["dispense_fired_for_gap"] = True
+
+
+        try:
+            create_and_queue_command(
+                name=name,
+                payload=payload,
+                execution="auto"
+            )
+            print("[RULES] queued command:", name)
+            return True
+        except Exception as e:
+            print("[RULES] command error:", e)
+            return False
+
 
     # ---------- rule management ----------
     def load_rules_from_file(self, path: str):
@@ -335,6 +367,23 @@ class RuleEngine:
         except Exception as e:
             print(_LOG_PREFIX, "stop_program error", e)
         return False
+    
+    def _action_emit_alert(self, params, **ctx):
+        try:
+            topic = "edge/alerts"
+            payload = {
+                "ts": int(time.time()*1000),
+                "level": params.get("level", "info"),
+                "message": params.get("message")
+            }
+            if self.mqtt_client:
+                self.mqtt_client.publish(topic, json.dumps(payload))
+            print("[RULES] alert:", payload)
+            return True
+        except Exception as e:
+            print("[RULES] emit_alert error:", e)
+            return False
+
 
     def _action_publish_alert(self, params, **ctx):
         topic = params.get("topic", "edge/alerts")

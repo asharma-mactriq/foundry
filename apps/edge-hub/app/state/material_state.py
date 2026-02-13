@@ -14,8 +14,8 @@ class MaterialState:
     fill_line_primed: bool = False
     dispense_line_primed: bool = False
 
-    estimated_pot_volume_ml: float = 0.0
-    estimated_dispensed_ml: float = 0.0
+    current_pot_kg: float = 0.0
+    estimated_dispensed_kg: float = 0.0
 
     paint_confidence: str = "UNKNOWN"      # HIGH | LOW | UNKNOWN
     dispense_confidence: str = "UNKNOWN"   # HIGH | LOW | UNKNOWN

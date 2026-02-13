@@ -2,44 +2,10 @@
 import time
 from app.state.material_state import material_state_manager
 
-POT_CAPACITY_ML = 4000   # set conservatively (NOT full extinguisher)
-MIN_USABLE_VOLUME = 300   # ml — conservative
-FLOW_TIMEOUT_S = 1.5
+POT_CAPACITY_KG = 4.5
+MIN_USABLE_VOLUME = 0.4   # kg — conservative
 
 class MaterialOrchestrator:
-
-    # def process_telemetry(self, telemetry):
-    #     ms = material_state_manager.state
-    #     now = telemetry.get("ts", time.time())  # ✅ DEFINE NOW
-
-
-
-    #     if "pressure" in telemetry:
-    #         ms.pot_pressure = telemetry["pressure"]
-
-    #     if ms.dispensing_active:
-    #         if ms.last_flow_ts:
-    #             dt = now - ms.last_flow_ts
-    #             # conservative assumed flow (ml/s)
-    #             ASSUMED_FLOW = 1.0
-    #             ms.estimated_dispensed_ml += ASSUMED_FLOW * dt
-    #             ms.estimated_pot_volume_ml -= ASSUMED_FLOW * dt
-    #         ms.last_flow_ts = now
-
-        
-    #             # ---- Paint availability confidence ----
-    #     if ms.dispensing_active:
-    #         if ms.estimated_pot_volume_ml < MIN_USABLE_VOLUME:
-    #             ms.paint_confidence = "LOW"
-    #         else:
-    #             ms.paint_confidence = "HIGH"
-
-    #     # ---- Dispense health confidence ----
-    #     if ms.dispensing_active:
-    #         if now - ms.last_flow_ts > FLOW_TIMEOUT_S:
-    #             ms.dispense_confidence = "LOW"
-    #         else:
-    #             ms.dispense_confidence = "HIGH"
 
     def process_telemetry(self, telemetry):
         ms = material_state_manager.state
@@ -51,20 +17,40 @@ class MaterialOrchestrator:
         if "pot_pressure" in telemetry:
             ms.pot_pressure = telemetry["pot_pressure"]
 
+        
+
         # -------------------------
         # WEIGHT-BASED DISPENSE
         # -------------------------
+        # if "pot_weight" in telemetry:
+        #     prev = ms.current_pot_kg
+        #     current = telemetry["pot_weight"]
+
+        #     if prev == 0:
+        #         ms.current_pot_kg = current
+        #     else:
+        #         delta = prev - current
+        #         if delta > 0:
+        #             ms.estimated_dispensed_kg += delta
+        #             ms.current_pot_kg = current
         if "pot_weight" in telemetry:
-            prev = ms.estimated_pot_volume_ml
+            prev = ms.current_pot_kg
             current = telemetry["pot_weight"]
 
             if prev == 0:
-                ms.estimated_pot_volume_ml = current
+                ms.current_pot_kg = current
             else:
-                delta = prev - current
-                if delta > 0:
-                    ms.estimated_dispensed_ml += delta
-                    ms.estimated_pot_volume_ml = current
+                delta = current - prev
+
+                # REFILL detected (weight increase)
+                if delta > 0.05:   # 50g threshold
+                    ms.current_pot_kg = current
+
+                # DISPENSE detected (weight decrease)
+                elif delta < -0.02:  # 20g noise filter
+                    ms.estimated_dispensed_kg += abs(delta)
+                    ms.current_pot_kg = current
+
 
         # -------------------------
         # DISPENSING STATE
@@ -75,7 +61,7 @@ class MaterialOrchestrator:
         # -------------------------
         # CONFIDENCE
         # -------------------------
-        if ms.estimated_pot_volume_ml < MIN_USABLE_VOLUME:
+        if ms.current_pot_kg < MIN_USABLE_VOLUME:
             ms.paint_confidence = "LOW"
         else:
             ms.paint_confidence = "HIGH"
@@ -96,7 +82,7 @@ class MaterialOrchestrator:
         if event == "refill_done":
             ms.pot_filled = True
             ms.pot_fill_ts = time.time()
-            ms.estimated_pot_volume_ml = POT_CAPACITY_ML
+            ms.current_pot_kg = POT_CAPACITY_KG
             ms.last_event = event
             ms.last_event_ts = time.time()
 
@@ -109,5 +95,10 @@ class MaterialOrchestrator:
         if event == "dispense_stop":
             ms.dispensing_active = False
             ms.last_flow_ts = 0
+
+        if event == "dispense_manual_done":
+            ms.dispense_line_primed = True
+            ms.last_event = event
+            ms.last_event_ts = time.time()
 
 material_orchestrator = MaterialOrchestrator()

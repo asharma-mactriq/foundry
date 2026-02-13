@@ -1,15 +1,23 @@
+
 [
   {
     "id": "dispense_on_stable_gap",
     "priority": 100,
-    "condition": "machine['phase'] == 'rest_dispense_edge' and machine['plate_stable'] == True and machine['dispense_fired_for_gap'] == False and system.phase == 'READY'",
-    "actions": [{ "type": "dispense.open", "params": {"open_ms": 120} }]
+    "condition": "machine.phase == 'rest_dispense_edge' and machine.plate_stable == True and machine.dispense_fired_for_gap == False and system.phase == SystemPhase.READY",
+    "actions": [{
+      "type": "command",
+      "params": {
+        "name": "dispense.open",
+        "payload": { "open_ms": 120 }
+      }
+    }]
   },
+
 
   {
     "id": "stop_on_high_pressure",
     "priority": 150,
-    "condition": "machine['pressure'] > 2.8",
+    "condition": "machine['pressure'] > 1.5",
     "actions": [{ "type": "stop_program" }]
   },
 
@@ -17,7 +25,7 @@
     "id": "auto_reprime_pressure",
     "priority": 120,
     "cooldown_ms": 10000,
-    "condition": "machine['pressure'] < 1.4 and machine['phase'] == 'rest_dispense_edge'",
+    "condition": "machine['pressure'] < 0.5 and machine['phase'] == 'rest_dispense_edge'",
     "actions": [{ "type": "pressure.reprime" }]
   },
 
@@ -29,19 +37,32 @@
   },
 
   {
-    "id": "stop_on_paint_empty",
-    "priority": 200,
-    "condition": "material['paint_confidence'] == 'LOW'",
-    "actions": [{ "type": "program.stop" }]
-  },
+  "id": "stop_on_paint_empty",
+  "priority": 200,
+  "condition": "material.paint_confidence == 'LOW'",
+  "actions": [{
+    "type": "command",
+    "params": {
+      "name": "program.stop"
+    }
+  }]
+},
 
-  {
+
+    {
     "id": "auto_refill",
     "priority": 150,
     "cooldown_ms": 15000,
-    "condition": "material['estimated_pot_volume_ml'] < 800 and machine['phase'] == 'rest_dispense_edge'",
-    "actions": [{ "type": "refill.start" }]
+    "condition": "material.estimated_pot_volume_ml < 2 and machine.phase == 'rest_dispense_edge'",
+    "actions": [{
+      "type": "command",
+      "params": {
+        "name": "refill.start",
+        "payload": { "duration_ms": 3000 }
+      }
+    }]
   },
+
 
   {
     "id": "paint_low_warning",
