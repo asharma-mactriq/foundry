@@ -155,6 +155,21 @@ class CommandRegistry:
             priority=60
         ))
 
+
+        # Inside app/commands/command_registry.py -> _load_defaults()
+
+        self.register(CommandSpec(
+            name="startup.sequence",
+            group="program",
+            # Allow in manual (since we just loaded) or auto
+            allowed_operation_modes=[OperationMode.manual, OperationMode.auto],
+            allowed_process_modes=[ProcessMode.idle],
+            payload_schema={},
+            timeout_ms=5000, # Give it time to run physical steps
+            priority=85,
+            description="Initializes hardware after program load"
+        ))
+
         # Demo Run Command to be shown on edge ui
 
         self.register(CommandSpec(

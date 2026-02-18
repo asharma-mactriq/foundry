@@ -241,6 +241,27 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             ]
         }
     
+
+    # Inside app/workflows/workflow_builder.py
+
+    if cmd_name == "startup.sequence":
+        return {
+            "name": "startup_sequence",
+            "cmd_id": cmd_id,
+            "steps": [
+                { "type": "CMD_ACK_RECEIVED" },
+                { "type": "CMD_ACK_STARTED" },
+                # Example: A 1-second "Hardware Shake" or initialization delay
+                {"type": "EMIT_EVENT", "eventName": "hw_init_start"},
+                {"type": "WAIT_MS", "durationMs": 1000}, 
+                {"type": "EMIT_EVENT", "eventName": "hw_init_done"},
+
+
+                
+                { "type": "CMD_ACK_COMPLETED" }
+            ]
+        }
+
     if cmd_name == "program.start":
         return {
             "name": "program_start",

@@ -76,6 +76,22 @@ class ProgramEngine:
     #     elif event == "pass_exit":
     #         self._handle_pass_exit(program)
 
+# Inside app/program/program_engine.py
+
+    def _handle_startup(self, machine):
+        # If we already sent it, don't spam
+        if self.startup_started_at is not None:
+            return
+
+        print("[PROGRAM_ENGINE] System in STARTUP. Sending startup.sequence to firmware.")
+        self.startup_started_at = time.time()
+        
+        # This will now pass the Registry check AND the WorkflowBuilder check
+        self.executor.send_command({
+            "name": "startup.sequence",
+            "payload": {}
+        })
+
     def on_event(self, machine, program):
 
         # --------------------------------------------------
@@ -102,7 +118,7 @@ class ProgramEngine:
             #         "payload": {}
             #     })
 
-            return
+            # return
 
         if program.phase == ProgramPhase.STARTUP:
             self._handle_startup(machine)
