@@ -1,5 +1,7 @@
 from fastapi import APIRouter
-from app.program.program_engine import program_engine
+from fastapi import Request
+
+# from app.program.program_engine import program_engine
 from app.state.program_state import program_state
 from app.state.machine_state import machine_state_manager
 from app.core import clock
@@ -8,9 +10,10 @@ router = APIRouter()
 
 
 @router.post("/start")
-def start_program():
+def start_program(request: Request):
 
-    # Reset gap logic for clean edge detection
+    program_engine = request.app.state.program_engine
+
     st = machine_state_manager.state
     st.gap_prev = 0
     st.gap = 0
@@ -18,7 +21,6 @@ def start_program():
     st.plate_stable = False
     st.plate_stable_since = clock.mono()
 
-    # IMPORTANT: call ProgramEngine, not program_state
     config = {
         "program_id": "default",
         "total_passes": 50,
@@ -31,9 +33,11 @@ def start_program():
 
 
 @router.post("/stop")
-def stop_program():
+def stop_program(request: Request):
+    program_engine = request.app.state.program_engine
     program_engine.stop_program()
     return {"ok": True}
+
 
 
 @router.get("/state")
