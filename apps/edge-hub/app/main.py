@@ -14,6 +14,8 @@ from app.services.rule_engine import get_rule_engine
 from app.api.acks import router as acks_router
 from app.api import status
 from app.api import demo
+from app.program.program_engine import ProgramEngine
+from app.program import program_engine as program_module
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -75,6 +77,13 @@ def startup_event():
         mqtt_client.executor = executor
         app.state.executor = executor
         _log("3A. Executor started")
+
+        # ---------- Program Engine ----------
+        _log("3B. Creating Program Engine")
+        program_module.program_engine = ProgramEngine(executor)
+        app.state.program_engine = program_module.program_engine
+        _log("3C. Program Engine ready")
+
 
         # ---------- ACK Listener ----------
         _log("4. Starting ACK Listener")

@@ -33,7 +33,7 @@ ALLOWED_NODE_TYPES = (
     ast.Expression, ast.BoolOp, ast.UnaryOp, ast.BinOp, ast.Compare,
     ast.Name, ast.Load, ast.Constant, ast.Attribute, ast.Subscript,
     ast.And, ast.Or, ast.Not, ast.Eq, ast.NotEq, ast.Gt, ast.Lt, ast.GtE,
-    ast.LtE, ast.Num, ast.Str, ast.List, ast.Tuple, ast.Index, ast.Call
+    ast.LtE, ast.Num, ast.Str, ast.List, ast.Tuple, ast.Index, ast.Call, ast.In, ast.NotIn
 )
 
 def _to_safe_name(name: str):
