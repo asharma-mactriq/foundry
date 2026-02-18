@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from app.orchestrators.state_orchestrator import state_orchestrator
 from app.services.rule_engine import get_rule_engine
 from app.state.material_state import material_state_manager
+from app.program.program_engine import program_engine
+from app.core import clock
 
 class TelemetryService:
     def __init__(self):
@@ -13,12 +15,14 @@ class TelemetryService:
         self.forward_hz = 10
         self.last_forward_ts = 0
         self.mqtt_client = None
+        self.last_program_event_ts = 0
+
 
     def set_mqtt_client(self, client):
         self.mqtt_client = client
 
     def update(self, data):
-        now = time.time()
+        now = clock.mono()
 
         # Store raw telemetry
         self.history.append(data)
@@ -30,6 +34,11 @@ class TelemetryService:
         try:
             print("[TELEMETRY] update() called with:", data)
             ms, ps = state_orchestrator.process(data)
+            if program_engine and ps.last_event_ts:
+                if ps.last_event_ts != self.last_program_event_ts:
+                    program_engine.on_event(ms, ps)
+                    self.last_program_event_ts = ps.last_event_ts
+
 
 
         except Exception as e:

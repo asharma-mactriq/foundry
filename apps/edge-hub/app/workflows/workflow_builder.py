@@ -96,7 +96,10 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         # -----------------------------
         # IDEMPOTENCY PROTECTION
         # -----------------------------
-        if not program_state.running:
+        # IDEMPOTENCY PROTECTION
+        # -----------------------------
+        from app.state.program_state import ProgramPhase
+        if program_state.phase == ProgramPhase.STOPPED:
             print("[WORKFLOW] program.stop ignored — already stopped")
             return None
 
@@ -288,15 +291,17 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             steps.append({ "type": "CMD_ACK_COMPLETED" })
 
             return {
-                "workflow_id": str(uuid.uuid4()),
+                # "workflow_id": str(uuid.uuid4()),
                 "name": "pressure_assisted_prep",
                 "cmd_id": cmd_id,
                 "steps": steps
             }
 
     # FALLBACK
-    return {
-        "name": "noop",
-        "cmd_id": cmd_id,
-        "steps": []
-    }
+    # return {
+    #     "name": "noop",
+    #     "cmd_id": cmd_id,
+    #     "steps": []
+    # }
+    return None
+

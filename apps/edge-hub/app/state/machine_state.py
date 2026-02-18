@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
-import time
+# import time
+from app.core import clock
+
 from enum import Enum
 
 class MachinePhase(str, Enum):
@@ -53,9 +55,9 @@ class MachineState:
         if old == 0 and g == 1:
             self.gap_transition = "enter"
             self.plate_stable = False
-            self.plate_stable_since = time.time()
+            self.plate_stable_since = clock.mono()
             self.last_event = "plate_enter"
-            self.last_event_ts = time.time()
+            self.last_event_ts = clock.mono()
             return
 
         # ----------- EXIT (single-shot) -----------
@@ -64,7 +66,7 @@ class MachineState:
             self.plate_stable = False
             self.dispense_fired_for_gap = False
             self.last_event = "plate_exit"
-            self.last_event_ts = time.time()
+            self.last_event_ts = clock.mono()
             return
 
         # otherwise no transition
@@ -83,11 +85,11 @@ class MachineState:
     def check_stable_window(self):
         if self.gap == 1:
             if not self.plate_stable:
-                elapsed_ms = (time.time() - self.plate_stable_since) * 1000
+                elapsed_ms = (clock.mono() - self.plate_stable_since) * 1000
                 if elapsed_ms >= self.stable_window_ms:
                     self.plate_stable = True
                     self.last_event = "plate_stable"
-                    self.last_event_ts = time.time()
+                    self.last_event_ts = clock.mono()
         return self.plate_stable
 
 
@@ -110,7 +112,9 @@ class MachineStateManager:
             self.state.is_dispensing = bool(data["valves"].get("dispense", 0))
 
         # -------- TIME --------
-        self.state.last_update_ts = data.get("ts", time.time())
+        self.state.last_update_ts = clock.mono()
+
+        
 
         # -------- DERIVED --------
         self.state.check_stable_window()

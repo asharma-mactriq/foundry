@@ -7,6 +7,7 @@ import time
 import json
 import threading
 import requests
+from app.core import clock
 
 from app.commands.command_queue import command_queue
 from app.services.command_store import command_store
@@ -15,6 +16,7 @@ from app.workflows.workflow_builder import build_workflow_for_command
 
 from app.state.machine_state import machine_state_manager, MachinePhase
 from app.state.program_state import program_state
+from app.state.program_state import ProgramPhase
 from app.modes.mode_manager import mode_manager
 from app.modes.mode_types import FaultMode
 
@@ -74,6 +76,7 @@ class CommandExecutor:
             if not self.current_cmd or self.current_cmd["cmd_id"] != cmd_id:
                 return
 
+            cmd_name = self.current_cmd.get("name")
             print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
 
             # Stop the Scheduler from resending the command once the device acknowledges it
@@ -86,9 +89,23 @@ class CommandExecutor:
 
             # 2. Release Lock: If completed, allow the next command to be popped from queue
             if event == "command.completed":
-                print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+                # print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
                 # Mark as completed in DB so history is accurate
                 command_store.update_status(cmd_id, "completed", data)
+
+                from app.state.program_state import program_state
+
+                if cmd_name == "program.load":
+                    program_state.on_loaded()
+
+                elif cmd_name == "startup.sequence":
+                    program_state.on_startup_complete()
+
+                elif cmd_name == "program.stop":
+                    program_state.stop_program()
+
+                print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+    
                 self.current_cmd = None
                 self.sent_at = None
             # # 2. Release Lock: If completed, allow the next command to be popped from queue
@@ -146,7 +163,9 @@ class CommandExecutor:
             print(f"  phase      : {ms.phase}")
             print(f"  pressure   : {ms.pressure}")
             print(f"  pot_ml     : {mat.current_pot_kg}")
-            print(f"  program    : running={ps.running}")
+            # print(f"  program    : running={ps.running}")
+            print(f"  program    : phase={ps.phase}")
+
             print(f"  fault      : {modes['fault']}\n")
 
             if self.client:
@@ -156,7 +175,8 @@ class CommandExecutor:
                     "phase": str(ms.phase),
                     "pressure": ms.pressure,
                     "pot_volume_ml": mat.current_pot_kg,
-                    "program_running": ps.running,
+                    # "program_running": ps.running,
+                    "program_phase": ps.phase.value,
                     "fault": modes["fault"],
                 }
                 self.client.publish("edge/guards", json.dumps(payload))
@@ -186,8 +206,14 @@ class CommandExecutor:
         # --------------------------------------------------
         # PROGRAM STATE
         # --------------------------------------------------
-        if not ps.running:
-            return block("program not running")
+        # if not ps.running:
+        #     return block("program not running")
+        if ps.phase not in (
+            ProgramPhase.STARTUP,
+            ProgramPhase.READY,
+            ProgramPhase.RUNNING
+        ):
+            return block(f"program_phase_invalid:{ps.phase}")
 
         # --------------------------------------------------
         # MATERIAL SAFETY
@@ -369,7 +395,7 @@ class CommandExecutor:
 
         # 3. Set active command
         self.current_cmd = cmd
-        self.sent_at = time.time()
+        self.sent_at = clock.mono()
         command_store.update_status(cmd["cmd_id"], "sent", {"sent_at": self.sent_at})
 
         print(f"[EXECUTOR → DEVICE] {cmd['cmd_id']} | {cmd['name']}")
@@ -413,10 +439,9 @@ class CommandExecutor:
     def _check_timeout(self):
             if not self.current_cmd:
                 return
-                
-            elapsed = time.time() - self.sent_at
-            
-            # If the ESP32 takes more than 15 seconds to finish a 
+
+            elapsed = clock.mono() - self.sent_at
+
             # workflow, it might have crashed. We release the lock
             # so the next command in the queue can try to run.
             if elapsed > 60.0: 
@@ -449,7 +474,10 @@ class CommandExecutor:
         Adds command to queue with a unique cmd_id and lets loop() send it.
         """
         cmd_id = str(uuid.uuid4())
-        now = time.time() # FIX: Need current time for DB fields
+        # now = time.time() # FIX: Need current time for DB fields
+        now_wall = clock.wall_ts()
+        now_mono = clock.mono()
+
         
         # 1. Add required fields for CommandExecutor and CommandStore schema
         cmd["cmd_id"] = cmd_id
@@ -464,8 +492,11 @@ class CommandExecutor:
         cmd["type"] = cmd.get("cmd") # Use the 'cmd' field as the 'type' for the DB
         cmd["payload"] = cmd.get("payload", {"valve_id": cmd.get("valve_id")}) # Move details to payload
         cmd["priority"] = cmd.get("priority", 10)
-        cmd["issued_at"] = cmd.get("issued_at", now)
-        cmd["valid_until"] = cmd.get("valid_until", now + 60) # Default 60s validity
+        # cmd["issued_at"] = cmd.get("issued_at", now)
+        # cmd["valid_until"] = cmd.get("valid_until", now + 60) # Default 60s validity
+        cmd["issued_at"] = cmd.get("issued_at", now_wall.isoformat())
+        cmd["valid_until"] = cmd.get("valid_until", clock.wall_ts().isoformat())
+
         cmd["status"] = cmd.get("status", "queued")
 
         # 2. Push into queue
@@ -533,7 +564,7 @@ class CommandExecutor:
         success = data.get("success", True)
 
         # Reset timeout
-        self.sent_at = time.time()
+        self.sent_at = clock.mono()
 
         # Persist to DB
         command_store.add_step(
