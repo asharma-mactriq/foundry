@@ -474,9 +474,9 @@ class CommandExecutor:
         Adds command to queue with a unique cmd_id and lets loop() send it.
         """
         cmd_id = str(uuid.uuid4())
-        # now = time.time() # FIX: Need current time for DB fields
-        now_wall = clock.wall_ts()
-        now_mono = clock.mono()
+        now = time.time() # FIX: Need current time for DB fields
+        # now_wall = clock.wall_ts()
+        # now_mono = clock.mono()
 
         
         # 1. Add required fields for CommandExecutor and CommandStore schema
@@ -492,10 +492,10 @@ class CommandExecutor:
         cmd["type"] = cmd.get("cmd") # Use the 'cmd' field as the 'type' for the DB
         cmd["payload"] = cmd.get("payload", {"valve_id": cmd.get("valve_id")}) # Move details to payload
         cmd["priority"] = cmd.get("priority", 10)
-        # cmd["issued_at"] = cmd.get("issued_at", now)
-        # cmd["valid_until"] = cmd.get("valid_until", now + 60) # Default 60s validity
-        cmd["issued_at"] = cmd.get("issued_at", now_wall.isoformat())
-        cmd["valid_until"] = cmd.get("valid_until", clock.wall_ts().isoformat())
+        cmd["issued_at"] = cmd.get("issued_at", now)
+        cmd["valid_until"] = cmd.get("valid_until", now + 60) # Default 60s validity
+        # cmd["issued_at"] = cmd.get("issued_at", now_wall.isoformat())
+        # cmd["valid_until"] = cmd.get("valid_until", clock.wall_ts().isoformat())
 
         cmd["status"] = cmd.get("status", "queued")
 
