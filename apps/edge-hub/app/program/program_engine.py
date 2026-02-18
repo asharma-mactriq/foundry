@@ -211,6 +211,26 @@ class ProgramEngine:
         now = time.time()
         pot_kg = machine.pot_weight_kg
 
+        from app.state.system_state import system_state, SystemPhase
+
+        if program_state.phase in (
+            ProgramPhase.ABORT,
+            ProgramPhase.FAULT,
+        ):
+            self.refill_state = "IDLE"
+            return
+
+        # Hard phase gate
+        if program_state.phase not in (
+            ProgramPhase.STARTUP,
+            ProgramPhase.READY,
+            ProgramPhase.RUNNING,
+        ):
+            return
+
+        if system_state.phase != SystemPhase.READY:
+            return
+
         # -----------------------------------------
         # 1. Unlock refill if pot recovered
         # -----------------------------------------
