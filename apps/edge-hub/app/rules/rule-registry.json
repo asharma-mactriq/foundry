@@ -1,24 +1,23 @@
 [
   {
-  "id": "dispense_on_gap",
-  "priority": 100,
-  "cooldown_ms": 500,
-  "condition": "program.running == True and mode['process'] == 'tracking' and machine.gap == 1 and machine.pressure >= 0",
-  "actions": [{
-    "type": "command",
-    "params": {
-      "name": "dispense.open",
-      "payload": { "open_ms": 120 }
-    }
-  }]
-},
-
+    "id": "dispense_on_gap",
+    "priority": 100,
+    "cooldown_ms": 500,
+    "condition": "program.phase in ['startup','ready','running'] and mode['process'] == 'tracking' and machine.gap == 1 and machine.pressure >= 0",
+    "actions": [{
+      "type": "command",
+      "params": {
+        "name": "dispense.open",
+        "payload": { "open_ms": 120 }
+      }
+    }]
+  },
 
   {
     "id": "stop_on_high_pressure",
     "priority": 150,
     "cooldown_ms": 5000,
-    "condition": "machine.pressure > 1.5 and program.running == True",
+    "condition": "machine.pressure > 1.5 and program.phase in ['startup','ready','running']",
     "actions": [{
       "type": "command",
       "params": { "name": "program.stop" }
@@ -29,7 +28,7 @@
     "id": "auto_reprime_pressure",
     "priority": 120,
     "cooldown_ms": 10000,
-    "condition": "machine.pressure < 0.2  and program.running == True",
+    "condition": "machine.pressure < 0.2 and program.phase in ['startup','ready','running']",
     "actions": [{
       "type": "command",
       "params": {
@@ -43,7 +42,7 @@
     "id": "auto_refill",
     "priority": 150,
     "cooldown_ms": 15000,
-    "condition": "material.current_pot_kg < material.pot_min_kg and material.paint_confidence == 'HIGH'  and program.running == True",
+    "condition": "material.current_pot_kg < material.pot_min_kg and material.paint_confidence == 'HIGH' and program.phase in ['startup','ready','running']",
     "actions": [{
       "type": "command",
       "params": {
@@ -57,7 +56,7 @@
     "id": "stop_on_paint_empty",
     "priority": 200,
     "cooldown_ms": 15000,
-    "condition": "material.paint_confidence == 'LOW' and program.running == True",
+    "condition": "material.paint_confidence == 'LOW' and program.phase in ['startup','ready','running']",
     "actions": [{
       "type": "command",
       "params": { "name": "program.stop" }
@@ -68,7 +67,7 @@
     "id": "paint_low_warning",
     "priority": 50,
     "cooldown_ms": 10000,
-    "condition": "material.current_pot_kg < material.pot_min_kg and program.running == True",
+    "condition": "material.current_pot_kg < material.pot_min_kg and program.phase in ['startup','ready','running']",
     "actions": [{
       "type": "emit_alert",
       "params": {
