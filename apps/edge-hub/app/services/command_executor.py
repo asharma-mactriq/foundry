@@ -44,6 +44,9 @@ class CommandExecutor:
         threading.Thread(target=self.loop, daemon=True).start()
         print("[EXECUTOR] Started")
 
+    def is_busy(self) -> bool:
+        return self.current_cmd is not None
+
     def loop(self):
         while self.running:
             time.sleep(self.tick)
@@ -85,6 +88,16 @@ class CommandExecutor:
                 
             elif event == "command.started":
                 command_store.update_status(cmd_id, "started", data)
+
+                from app.program.program_engine import program_engine
+
+                if program_engine:
+                    cmd_name = self.current_cmd.get("name")
+
+                    if cmd_name == "refill.start":
+                        program_engine.refill_state = "RUNNING"
+                        print("[EXECUTOR] Refill workflow running")
+
             # ---------------------------
 
             # 2. Release Lock: If completed, allow the next command to be popped from queue
@@ -92,6 +105,18 @@ class CommandExecutor:
                 # print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
                 # Mark as completed in DB so history is accurate
                 command_store.update_status(cmd_id, "completed", data)
+
+                from app.program.program_engine import program_engine
+
+                if program_engine:
+                    cmd_name = self.current_cmd.get("name")
+
+                    # -------------------------------------
+                    # REFILL LIFECYCLE HANDLING
+                    # -------------------------------------
+                    if cmd_name == "refill.start":
+                        program_engine.refill_state = "IDLE"
+                        print("[EXECUTOR] Refill workflow completed → state reset")
 
                 from app.state.program_state import program_state
 

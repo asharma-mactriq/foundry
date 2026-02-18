@@ -18,6 +18,15 @@ class ProgramEngine:
         self.startup_started_at = None
         self.pass_started_at = None
 
+        self.refill_state = "IDLE"   # IDLE | REQUESTED | RUNNING
+        self.last_refill_ts = 0
+        self.refill_threshold_kg = 0.5   # trigger below this
+        self.refill_target_kg = 4.0      # stop expecting above this
+        self.refill_cooldown_sec = 5
+        self.refill_attempts = 0
+        self.max_refill_attempts = 3
+
+
     # ---------------------------------------------------------
     # Called by NestJS: /program/start
     # ---------------------------------------------------------
@@ -106,6 +115,14 @@ class ProgramEngine:
         ):
             return
 
+        if program.phase == ProgramPhase.RUNNING:
+            self._maybe_trigger_refill(machine)
+            # if machine.is_pot_low():
+            #     self.executor.send_command({
+            #         "name": "refill.start",
+            #         "payload": {}
+            #     })
+
         event = program.last_event
 
         if event == "pass_enter":
@@ -189,27 +206,78 @@ class ProgramEngine:
             }
         })
 
+    def _maybe_trigger_refill(self, machine):
 
-        # stop_cmd = {
-        #     "cmd_id": str(uuid.uuid4()),
-        #     "deviceId": "1",
-        #     "name": "stopWorkflow",
-        #     "type": "workflow",
-        #     "payload": {},
-        #     "issued_at": time.time(),
-        #     "valid_until": time.time() + 10,
-        #     "priority": 10,
-        # }
+        now = time.time()
+        pot_kg = machine.pot_weight_kg
 
-        # self.executor.queue_command(stop_cmd)
+        # -----------------------------------------
+        # 1. Unlock refill if pot recovered
+        # -----------------------------------------
+        if self.refill_state == "RUNNING":
+            if pot_kg >= self.refill_target_kg:
+                print("[PROGRAM_ENGINE] Refill completed (target reached)")
+                self.refill_state = "IDLE"
+                self.refill_attempts = 0
+            return
 
-        # if last pass, finish program
-        # if pid >= self.config["total_passes"]:
-        if self.config and pid >= self.config.get("total_passes", 0):
-            print("[PROGRAM_ENGINE] PROGRAM COMPLETED")
-            self.stop_program()
+        # -----------------------------------------
+        # 2. Only trigger below threshold
+        # -----------------------------------------
+        if pot_kg >= self.refill_threshold_kg:
+            return
+        
+        # If requested but never transitioned to RUNNING in time → reset
+        if self.refill_state == "REQUESTED":
+            if now - self.last_refill_ts > 10:  # 10 sec fail-safe
+                print("[PROGRAM_ENGINE] Refill request timeout → resetting state")
+                self.refill_state = "IDLE"
+            return
 
-    # ---------------------------------------------------------
+
+        # -----------------------------------------
+        # 3. Cooldown protection
+        # -----------------------------------------
+        if now - self.last_refill_ts < self.refill_cooldown_sec:
+            return
+
+        # -----------------------------------------
+        # 4. If already requested → wait
+        # -----------------------------------------
+        if self.refill_state != "IDLE":
+            return
+
+        # -----------------------------------------
+        # 5. If firmware busy → do nothing
+        # -----------------------------------------
+        if self.executor.is_busy():
+            return
+        
+
+        print(f"[PROGRAM_ENGINE] Triggering refill (pot={pot_kg:.2f}kg)")
+
+        if self.refill_attempts >= self.max_refill_attempts:
+            print("[PROGRAM_ENGINE] Refill lockout – max attempts reached")
+            return
+
+        self.executor.send_command({
+            "name": "refill.start",
+            "payload": {}
+        })
+
+        self.refill_attempts += 1
+        self.refill_state = "REQUESTED"
+        self.last_refill_ts = now
+
+        # self.executor.send_command({
+        #     "name": "refill.start",
+        #     "payload": {}
+        # })
+
+        # self.refill_state = "REQUESTED"
+        # self.last_refill_ts = now
+
+  # ---------------------------------------------------------
     # helper
     # ---------------------------------------------------------
     def _expected_ml_for_pass(self, pid):

@@ -8,7 +8,7 @@ from unicodedata import name
 from app.commands.helpers import create_and_queue_command
 from app.state.system_state import system_state, SystemPhase
 from app.modes.mode_manager import mode_manager   # adjust path if needed
-
+from app.state.program_state import program_state, ProgramPhase
 # If you keep a module-style global 'app' like FastAPI app.state, import it:
 # from fastapi import current_app as app  # only available inside request context; use safe access in startup
 # Alternatively the startup code will inject mqtt/executor explicitly into RuleEngine
@@ -221,6 +221,14 @@ class RuleEngine:
         - program: ProgramState object or dict
         - material: MaterialState object or dict
         """
+
+        # from app.state.program_state import program_state
+
+        if program_state.phase not in (
+            ProgramPhase.RUNNING,
+            ProgramPhase.READY,
+        ):
+            return []
         # Build context for condition eval
         ctx = {
             "raw": raw,
