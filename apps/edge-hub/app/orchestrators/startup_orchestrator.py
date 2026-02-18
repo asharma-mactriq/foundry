@@ -22,12 +22,12 @@ class StartupOrchestrator:
         # -------- INIT LOGIC --------
 
         # 1. Ensure pot has paint
-        if mat.current_pot_kg < MIN_STARTUP_KG:
-            create_and_queue_command(
-                name="refill.start",
-                payload={"duration_ms": 3000}
-            )
-            return
+        # if mat.current_pot_kg < MIN_STARTUP_KG:
+        #     create_and_queue_command(
+        #         name="refill.start",
+        #         payload={"duration_ms": 3000}
+        #     )
+        #     return
 
         # 2. Ensure pressure
         # if ms.pressure < TARGET_PRESSURE:
