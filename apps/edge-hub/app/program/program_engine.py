@@ -96,14 +96,17 @@ class ProgramEngine:
         if program.phase == ProgramPhase.LOADED:
             program.begin_startup()
 
-            if program.phase == ProgramPhase.STARTUP:
-                self.executor.send_command({
-                    "name": "startup.sequence",
-                    "payload": {}
-                })
+            # if program.phase == ProgramPhase.STARTUP:
+            #     self.executor.send_command({
+            #         "name": "startup.sequence",
+            #         "payload": {}
+            #     })
 
             return
 
+        if program.phase == ProgramPhase.STARTUP:
+            self._handle_startup(machine)
+            return
 
         # --------------------------------------------------
         # NORMAL PASS LOGIC
@@ -228,7 +231,7 @@ class ProgramEngine:
         ):
             return
 
-        if system_state.phase != SystemPhase.READY:
+        if system_state.phase not in (SystemPhase.READY, SystemPhase.STARTUP):
             return
 
         # -----------------------------------------

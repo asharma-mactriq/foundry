@@ -24,33 +24,7 @@
     }]
   },
 
-  {
-    "id": "auto_reprime_pressure",
-    "priority": 120,
-    "cooldown_ms": 10000,
-    "condition": "machine.pressure < 0.2 and program.phase in ['startup','ready','running']",
-    "actions": [{
-      "type": "command",
-      "params": {
-        "name": "pressure.reprime",
-        "payload": { "duration_ms": 3000 }
-      }
-    }]
-  },
 
-  {
-    "id": "auto_refill",
-    "priority": 150,
-    "cooldown_ms": 15000,
-    "condition": "material.current_pot_kg < material.pot_min_kg and material.paint_confidence == 'HIGH' and program.phase in ['startup','ready','running']",
-    "actions": [{
-      "type": "command",
-      "params": {
-        "name": "refill.start",
-        "payload": { "duration_ms": 3000 }
-      }
-    }]
-  },
 
   {
     "id": "stop_on_paint_empty",
