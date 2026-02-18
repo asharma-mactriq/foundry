@@ -144,7 +144,13 @@ class CommandRegistry:
             name="refill.start",
             group="refill",
             allowed_operation_modes=[OperationMode.auto, OperationMode.manual],
-            allowed_process_modes=[ProcessMode.idle, ProcessMode.refill],
+            allowed_process_modes=[
+                ProcessMode.idle,
+                ProcessMode.refill,
+                ProcessMode.dispensing,
+                ProcessMode.tracking
+            ],
+            # allowed_process_modes=[ProcessMode.idle, ProcessMode.refill],
             payload_schema={"duration_ms": "int"},
             priority=60
         ))

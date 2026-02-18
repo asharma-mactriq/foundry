@@ -117,14 +117,17 @@ class ProgramEngine:
             ProgramPhase.RUNNING
         ):
             return
+        
+        # if program.last_event == "refill_started":
+        #     self.refill_state = "RUNNING"
+
+        if program.last_event == "refill_done":
+            self.refill_state = "IDLE"
+            self.last_refill_ts = time.time()
+
 
         if program.phase == ProgramPhase.RUNNING:
             self._maybe_trigger_refill(machine)
-            # if machine.is_pot_low():
-            #     self.executor.send_command({
-            #         "name": "refill.start",
-            #         "payload": {}
-            #     })
 
         event = program.last_event
 
@@ -237,24 +240,20 @@ class ProgramEngine:
         # -----------------------------------------
         # 1. Unlock refill if pot recovered
         # -----------------------------------------
-        if self.refill_state == "RUNNING":
-            if pot_kg >= self.refill_target_kg:
-                print("[PROGRAM_ENGINE] Refill completed (target reached)")
-                self.refill_state = "IDLE"
-                self.refill_attempts = 0
-            return
+        # if self.refill_state == "RUNNING":
+        #     if pot_kg >= self.refill_target_kg:
+        #         print("[PROGRAM_ENGINE] Refill completed (target reached)")
+        #         self.refill_state = "IDLE"
+        #         self.refill_attempts = 0
+        #     return
 
         # -----------------------------------------
         # 2. Only trigger below threshold
         # -----------------------------------------
+        # -----------------------------------------
+        # Trigger only below threshold
+        # -----------------------------------------
         if pot_kg >= self.refill_threshold_kg:
-            return
-        
-        # If requested but never transitioned to RUNNING in time → reset
-        if self.refill_state == "REQUESTED":
-            if now - self.last_refill_ts > 10:  # 10 sec fail-safe
-                print("[PROGRAM_ENGINE] Refill request timeout → resetting state")
-                self.refill_state = "IDLE"
             return
 
 

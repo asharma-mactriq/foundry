@@ -182,6 +182,31 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             ]
         }
 
+    if cmd_name == "refill.open":
+        return {
+            "name": "refill_open",
+            "cmd_id": cmd_id,
+            "steps": [
+                {"type": "CMD_ACK_RECEIVED"},
+                {"type": "CMD_ACK_STARTED"},
+                {"type": "OPEN_VALVE", "valveId": valve},
+                {"type": "CMD_ACK_COMPLETED"}
+            ]
+        }
+
+    if cmd_name == "refill.close":
+        return {
+            "name": "refill_close",
+            "cmd_id": cmd_id,
+            "steps": [
+                {"type": "CMD_ACK_RECEIVED"},
+                {"type": "CMD_ACK_STARTED"},
+                {"type": "CLOSE_VALVE", "valveId": valve},
+                {"type": "CMD_ACK_COMPLETED"}
+            ]
+        }
+
+
     # PURGE NOZZLE
     if cmd_name == "purge.nozzle":
         valve = DEVICE_MAP["valves"]["dispense"]
