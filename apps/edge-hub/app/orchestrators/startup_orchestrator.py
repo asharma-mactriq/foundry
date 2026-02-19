@@ -71,6 +71,7 @@ class StartupOrchestrator:
                 f"[STARTUP_ORCH] Pot already above target "
                 f"({current_kg:.3f}kg >= {target_kg}kg) — skipping fill"
             )
+            program_state.begin_pot_filling()   # enter POT_FILLING first
             program_state.on_pot_filled()   # → PRESSURISING
             return
 
