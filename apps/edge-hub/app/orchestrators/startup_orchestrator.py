@@ -124,7 +124,7 @@ class StartupOrchestrator:
 
         # ── Track weight change over time ──
         weight_gained_total = current_kg - self._fill_phase_start_weight
-        elapsed_total = now - self._fill_phase_start_weight
+        elapsed_total = now - self._fill_phase_start_ts
 
         # Update last-seen weight tracker
         if current_kg != self._fill_last_weight:
