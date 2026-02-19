@@ -56,13 +56,38 @@ class StartupOrchestrator:
         """
         if profile:
             self.profile = profile
+
         mat = material_state_manager.state
         now = time.time()
 
+        current_kg = mat.current_pot_kg
+        target_kg = self.profile.pot_fill_target_kg
+
+        # ─────────────────────────────────────────
+        # 1️⃣ Skip fill if already above target
+        # ─────────────────────────────────────────
+        if current_kg >= target_kg:
+            print(
+                f"[STARTUP_ORCH] Pot already above target "
+                f"({current_kg:.3f}kg >= {target_kg}kg) — skipping fill"
+            )
+            program_state.on_pot_filled()   # → PRESSURISING
+            return
+
+
+        # if mat.current_pot_kg >= self.profile.pot_fill_target_kg:
+        #     print("[STARTUP_ORCH] Pot already above target — skipping fill")
+        #     program_state.on_pot_filled()
+        #     return
+        
+
+
         self._fill_phase_start_ts = now
-        self._fill_phase_start_weight = mat.current_pot_kg
-        self._fill_last_weight = mat.current_pot_kg
+        self._fill_phase_start_weight = current_kg
+        self._fill_last_weight = current_kg
         self._fill_last_weight_ts = now
+        self._fill_cmd_sent = False
+        self._fill_stop_sent = False
 
         program_state.begin_pot_filling()
         print(
