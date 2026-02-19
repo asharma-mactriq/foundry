@@ -204,13 +204,26 @@ class CommandExecutor:
         if cmd_name == "program.load":
             program_state.on_loaded()
               # 👇 TRIGGER STARTUP
-            from app.commands.helpers import create_and_queue_command
-            create_and_queue_command(name="startup.sequence", payload={})
+            self.send_command({
+                "name": "startup.sequence",
+                "payload": {}
+            })
+
+        
 
         elif cmd_name == "startup.sequence":
+            program_state.begin_startup()
+
             from app.orchestrators.startup_orchestrator import startup_orchestrator
-            profile = getattr(program_engine, "profile", None) if program_engine else None
+            profile = program_engine.profile
             startup_orchestrator.begin(profile=profile)
+
+            self.send_command({
+                "name": "pot.fill_start",
+                "payload": {"target_kg": profile.pot_fill_target_kg}
+            })
+
+
 
         elif cmd_name == "program.stop":
             program_state.stop_program()
@@ -227,7 +240,21 @@ class CommandExecutor:
             "pressure.release",
             "refill.start",
             "system.reset",
+            "pot.fill_start",
+            "pot.fill_stop",
+            "pot.pressurise",
+            "pot.depressurise",
+            "line.prime_start",
+            "line.prime_stop",
         }
+
+
+        # BOOTSTRAP_COMMANDS = {
+        #     "pressure.reprime",
+        #     "pressure.release",
+        #     "refill.start",
+        #     "system.reset",
+        # }
 
         """
         Final safety gate before sending command to ESP32.
@@ -319,7 +346,8 @@ class CommandExecutor:
         if ps.phase not in (
             ProgramPhase.STARTUP,
             ProgramPhase.READY,
-            ProgramPhase.RUNNING
+            ProgramPhase.RUNNING,
+            ProgramPhase.LOADED
         ):
             return block(f"program_phase_invalid:{ps.phase}")
 
@@ -432,7 +460,7 @@ class CommandExecutor:
             print(f"[EXECUTOR] Command blocked by guard: {cmd['name']}")
             return
 
-        if cmd["name"] == "dispense.start":
+        if cmd["name"] == "dispense.open":
             ms = machine_state_manager.state
             if getattr(ms, "dispense_fired_for_gap", False):
                 command_store.update_status(
