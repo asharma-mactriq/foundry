@@ -47,76 +47,62 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     Convert a high-level command into a runtime workflow JSON object.
     """
 
-    if cmd_name == "program.load":
-        return {
-        "name": "program_load",
-        "cmd_id": cmd_id,
-        "steps": [
-            { "type": "CMD_ACK_RECEIVED" },
-            { "type": "CMD_ACK_STARTED" },
-            {"type": "EMIT_EVENT", "eventName": "program_load_begin"},
-            {"type": "WAIT_MS", "durationMs": 50},
-            {"type": "EMIT_EVENT", "eventName": "program_load_done"},
-            { "type": "CMD_ACK_COMPLETED" }
-
-        ]
-    }
-
-    # if cmd_name == "program.start":
+    # if cmd_name == "program.load":
     #     return {
-    #         "name": "program_start",
+    #     "name": "program_load",
+    #     "cmd_id": cmd_id,
+    #     "steps": [
+    #         { "type": "CMD_ACK_RECEIVED" },
+    #         { "type": "CMD_ACK_STARTED" },
+    #         {"type": "EMIT_EVENT", "eventName": "program_load_begin"},
+    #         {"type": "WAIT_MS", "durationMs": 50},
+    #         {"type": "EMIT_EVENT", "eventName": "program_load_done"},
+    #         { "type": "CMD_ACK_COMPLETED" }
+
+    #     ]
+    # }
+
+    # # if cmd_name == "program.start":
+    # #     return {
+    # #         "name": "program_start",
+    # #         "cmd_id": cmd_id,
+    # #         "steps": [
+    # #             { "type": "CMD_ACK_RECEIVED" },
+    # #             { "type": "CMD_ACK_STARTED" },
+    # #             {"type": "EMIT_EVENT", "eventName": "program_start_begin"},
+    # #             {"type": "WAIT_MS", "durationMs": 5000},
+    # #             {"type": "EMIT_EVENT", "eventName": "program_start_done"},
+    # #             { "type": "CMD_ACK_COMPLETED" }
+
+    # #         ]
+    # # }
+
+    # if cmd_name == "dispense.start":
+    #     return {
+    #         "name": "dispense_start",
     #         "cmd_id": cmd_id,
     #         "steps": [
     #             { "type": "CMD_ACK_RECEIVED" },
     #             { "type": "CMD_ACK_STARTED" },
-    #             {"type": "EMIT_EVENT", "eventName": "program_start_begin"},
-    #             {"type": "WAIT_MS", "durationMs": 5000},
-    #             {"type": "EMIT_EVENT", "eventName": "program_start_done"},
+    #             { "type": "OPEN_VALVE", "valveId": 1 },
+    #             { "type": "WAIT_MS", "durationMs": 120 },
+    #             { "type": "CLOSE_VALVE", "valveId": 1 },
     #             { "type": "CMD_ACK_COMPLETED" }
-
     #         ]
-    # }
-
-    if cmd_name == "dispense.start":
-        return {
-            "name": "dispense_start",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" },
-                { "type": "OPEN_VALVE", "valveId": 1 },
-                { "type": "WAIT_MS", "durationMs": 120 },
-                { "type": "CLOSE_VALVE", "valveId": 1 },
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
-
-    if cmd_name == "program.stop":
-
-        # -----------------------------
-        # IDEMPOTENCY PROTECTION
-        # -----------------------------
-        # IDEMPOTENCY PROTECTION
-        # -----------------------------
-        from app.state.program_state import ProgramPhase
-        if program_state.phase == ProgramPhase.STOPPED:
-            print("[WORKFLOW] program.stop ignored — already stopped")
-            return None
-
-        return {
-            "name": "program_stop",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" },
-                {"type": "EMIT_EVENT", "eventName": "program_stop_begin"},
-                {"type": "WAIT_MS", "durationMs": 50},
-                {"type": "EMIT_EVENT", "eventName": "program_stop_done"},
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
+    #     }
 
     # if cmd_name == "program.stop":
+
+    #     # -----------------------------
+    #     # IDEMPOTENCY PROTECTION
+    #     # -----------------------------
+    #     # IDEMPOTENCY PROTECTION
+    #     # -----------------------------
+    #     from app.state.program_state import ProgramPhase
+    #     if program_state.phase == ProgramPhase.STOPPED:
+    #         print("[WORKFLOW] program.stop ignored — already stopped")
+    #         return None
+
     #     return {
     #         "name": "program_stop",
     #         "cmd_id": cmd_id,
@@ -128,151 +114,275 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     #             {"type": "EMIT_EVENT", "eventName": "program_stop_done"},
     #             { "type": "CMD_ACK_COMPLETED" }
     #         ]
-    # }
+    #     }
 
-    if cmd_name == "program.next_pass":
-        return {
-            "name": "program_next_pass",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" }, 
-                {"type": "EMIT_EVENT", "eventName": "program_next_pass_begin"},
-                {"type": "WAIT_MS", "durationMs": 50},
-                {"type": "EMIT_EVENT", "eventName": "program_next_pass_done"},
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
+    # # if cmd_name == "program.stop":
+    # #     return {
+    # #         "name": "program_stop",
+    # #         "cmd_id": cmd_id,
+    # #         "steps": [
+    # #             { "type": "CMD_ACK_RECEIVED" },
+    # #             { "type": "CMD_ACK_STARTED" },
+    # #             {"type": "EMIT_EVENT", "eventName": "program_stop_begin"},
+    # #             {"type": "WAIT_MS", "durationMs": 50},
+    # #             {"type": "EMIT_EVENT", "eventName": "program_stop_done"},
+    # #             { "type": "CMD_ACK_COMPLETED" }
+    # #         ]
+    # # }
 
-
-
-    # PRESSURE REPRIME
-    if cmd_name == "pressure.reprime":
-        valve = DEVICE_MAP["valves"]["pot_air_in"]
-        return {
-            "name": "pressure_reprime",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" },
-                { "type": "OPEN_VALVE", "valveId": valve },
-                { "type": "WAIT_MS", "durationMs": payload.get("duration_ms", 5000) },
-                # { "type": "CHECK_PRESSURE", "threshold": payload.get("threshold", 1.5) },
-                { "type": "CLOSE_VALVE", "valveId": valve },
-                { "type": "EMIT_EVENT", "eventName": "reprime_done" },
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
-
-    # REFILL START
-    if cmd_name == "refill.start":
-        valve = DEVICE_MAP["valves"]["paint_inlet"]
-        return {
-            "name": "refill_cycle",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" }, 
-                {"type": "OPEN_VALVE", "valveId": valve},
-                {"type": "WAIT_MS", "durationMs": payload.get("duration_ms", 2000)},
-                {"type": "CLOSE_VALVE", "valveId": valve},
-                {"type": "EMIT_EVENT", "eventName": "refill_done"},
-                { "type": "CMD_ACK_COMPLETED" }
-
-            ]
-        }
-
-    if cmd_name == "refill.open":
-        return {
-            "name": "refill_open",
-            "cmd_id": cmd_id,
-            "steps": [
-                {"type": "CMD_ACK_RECEIVED"},
-                {"type": "CMD_ACK_STARTED"},
-                {"type": "OPEN_VALVE", "valveId": valve},
-                {"type": "CMD_ACK_COMPLETED"}
-            ]
-        }
-
-    if cmd_name == "refill.close":
-        return {
-            "name": "refill_close",
-            "cmd_id": cmd_id,
-            "steps": [
-                {"type": "CMD_ACK_RECEIVED"},
-                {"type": "CMD_ACK_STARTED"},
-                {"type": "CLOSE_VALVE", "valveId": valve},
-                {"type": "CMD_ACK_COMPLETED"}
-            ]
-        }
+    # if cmd_name == "program.next_pass":
+    #     return {
+    #         "name": "program_next_pass",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" }, 
+    #             {"type": "EMIT_EVENT", "eventName": "program_next_pass_begin"},
+    #             {"type": "WAIT_MS", "durationMs": 50},
+    #             {"type": "EMIT_EVENT", "eventName": "program_next_pass_done"},
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    #     }
 
 
-    # PURGE NOZZLE
-    if cmd_name == "purge.nozzle":
-        valve = DEVICE_MAP["valves"]["dispense"]
-        return {
-            "name": "purge_nozzle",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" }, 
-                {"type": "OPEN_VALVE", "valveId": valve},
-                {"type": "WAIT_MS", "durationMs": payload.get("duration_ms", 1000)},
-                {"type": "CLOSE_VALVE", "valveId": valve},
-                {"type": "EMIT_EVENT", "eventName": "purge_complete"},
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
 
-    # MANUAL DISPENSE OPEN
-    if cmd_name == "dispense.open":
-        dur = payload.get("open_ms", 100)
-        return {
-            "name": "manual_dispense",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" }, 
-                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
-                {"type": "WAIT_MS", "durationMs": dur},
-                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
-                {"type": "EMIT_EVENT", "eventName": "dispense_manual_done"},
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
+    # # PRESSURE REPRIME
+    # if cmd_name == "pressure.reprime":
+    #     valve = DEVICE_MAP["valves"]["pot_air_in"]
+    #     return {
+    #         "name": "pressure_reprime",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" },
+    #             { "type": "OPEN_VALVE", "valveId": valve },
+    #             { "type": "WAIT_MS", "durationMs": payload.get("duration_ms", 5000) },
+    #             # { "type": "CHECK_PRESSURE", "threshold": payload.get("threshold", 1.5) },
+    #             { "type": "CLOSE_VALVE", "valveId": valve },
+    #             { "type": "EMIT_EVENT", "eventName": "reprime_done" },
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    #     }
+
+    # # REFILL START
+    # if cmd_name == "refill.start":
+    #     valve = DEVICE_MAP["valves"]["paint_inlet"]
+    #     return {
+    #         "name": "refill_cycle",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" }, 
+    #             {"type": "OPEN_VALVE", "valveId": valve},
+    #             {"type": "WAIT_MS", "durationMs": payload.get("duration_ms", 2000)},
+    #             {"type": "CLOSE_VALVE", "valveId": valve},
+    #             {"type": "EMIT_EVENT", "eventName": "refill_done"},
+    #             { "type": "CMD_ACK_COMPLETED" }
+
+    #         ]
+    #     }
+
+    # if cmd_name == "refill.open":
+    #     return {
+    #         "name": "refill_open",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             {"type": "CMD_ACK_RECEIVED"},
+    #             {"type": "CMD_ACK_STARTED"},
+    #             {"type": "OPEN_VALVE", "valveId": valve},
+    #             {"type": "CMD_ACK_COMPLETED"}
+    #         ]
+    #     }
+
+    # if cmd_name == "refill.close":
+    #     return {
+    #         "name": "refill_close",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             {"type": "CMD_ACK_RECEIVED"},
+    #             {"type": "CMD_ACK_STARTED"},
+    #             {"type": "CLOSE_VALVE", "valveId": valve},
+    #             {"type": "CMD_ACK_COMPLETED"}
+    #         ]
+    #     }
+
+
+    # # PURGE NOZZLE
+    # if cmd_name == "purge.nozzle":
+    #     valve = DEVICE_MAP["valves"]["dispense"]
+    #     return {
+    #         "name": "purge_nozzle",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" }, 
+    #             {"type": "OPEN_VALVE", "valveId": valve},
+    #             {"type": "WAIT_MS", "durationMs": payload.get("duration_ms", 1000)},
+    #             {"type": "CLOSE_VALVE", "valveId": valve},
+    #             {"type": "EMIT_EVENT", "eventName": "purge_complete"},
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    #     }
+
+    # # MANUAL DISPENSE OPEN
+    # if cmd_name == "dispense.open":
+    #     dur = payload.get("open_ms", 100)
+    #     return {
+    #         "name": "manual_dispense",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" }, 
+    #             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+    #             {"type": "WAIT_MS", "durationMs": dur},
+    #             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+    #             {"type": "EMIT_EVENT", "eventName": "dispense_manual_done"},
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    #     }
     
 
-    # Inside app/workflows/workflow_builder.py
+    # # Inside app/workflows/workflow_builder.py
 
-    if cmd_name == "startup.sequence":
-        return {
-            "name": "startup_sequence",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" },
-                # Example: A 1-second "Hardware Shake" or initialization delay
-                {"type": "EMIT_EVENT", "eventName": "hw_init_start"},
-                {"type": "WAIT_MS", "durationMs": 1000}, 
-                {"type": "EMIT_EVENT", "eventName": "hw_init_done"},
+    # if cmd_name == "startup.sequence":
+    #     return {
+    #         "name": "startup_sequence",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" },
+    #             # Example: A 1-second "Hardware Shake" or initialization delay
+    #             {"type": "EMIT_EVENT", "eventName": "hw_init_start"},
+    #             {"type": "WAIT_MS", "durationMs": 1000}, 
+    #             {"type": "EMIT_EVENT", "eventName": "hw_init_done"},
 
 
                 
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    #     }
 
-    if cmd_name == "program.start":
-        return {
-            "name": "program_start",
-            "cmd_id": cmd_id,
-            "steps": [
-                { "type": "CMD_ACK_RECEIVED" },
-                { "type": "CMD_ACK_STARTED" },
-                { "type": "EMIT_EVENT", "eventName": "program_started" },
-                { "type": "CMD_ACK_COMPLETED" }
-            ]
-        }
+    # if cmd_name == "program.start":
+    #     return {
+    #         "name": "program_start",
+    #         "cmd_id": cmd_id,
+    #         "steps": [
+    #             { "type": "CMD_ACK_RECEIVED" },
+    #             { "type": "CMD_ACK_STARTED" },
+    #             { "type": "EMIT_EVENT", "eventName": "program_started" },
+    #             { "type": "CMD_ACK_COMPLETED" }
+    #         ]
+    #     }
+
+
+    # ── program.load ──
+    if cmd_name == "program.load":
+        steps += [
+            {"type": "EMIT_EVENT", "eventName": "program_load_begin"},
+            {"type": "WAIT_MS", "durationMs": 50},
+            {"type": "EMIT_EVENT", "eventName": "program_load_done"},
+        ]
+
+    # ── startup.sequence ──
+    if cmd_name == "startup.sequence":
+        steps += [
+            {"type": "EMIT_EVENT", "eventName": "hw_init_start"},
+            {"type": "WAIT_MS", "durationMs": 1000},
+            {"type": "EMIT_EVENT", "eventName": "hw_init_done"},
+        ]
+
+    # ── pot.fill_start ──
+    # Firmware opens paint_inlet and holds it open.
+    # Edge hub sends pot.fill_stop when target weight reached.
+    if cmd_name == "pot.fill_start":
+        steps += [
+            {"type": "OPEN_VALVE", "valve": "paint_inlet"},
+            {"type": "EMIT_EVENT", "eventName": "pot_fill_started"},
+            # Firmware stays here — no auto-close. Edge hub sends fill_stop.
+            {"type": "WAIT_FOR_CMD", "waitCmd": "pot.fill_stop"},
+        ]
+
+    # ── pot.fill_stop ──
+    if cmd_name == "pot.fill_stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valve": "paint_inlet"},
+            {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
+        ]
+
+    # ── pot.pressurise ──
+    # Time-based: open pot_air_in for open_ms then close.
+    if cmd_name == "pot.pressurise":
+        open_ms = payload.get("open_ms", 12000)
+        steps += [
+            {"type": "OPEN_VALVE", "valve": "pot_air_in"},
+            {"type": "EMIT_EVENT", "eventName": "pressurise_start"},
+            {"type": "WAIT_MS", "durationMs": open_ms},
+            {"type": "CLOSE_VALVE", "valve": "pot_air_in"},
+            {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
+        ]
+
+    # ── pot.depressurise ──
+    if cmd_name == "pot.depressurise":
+        steps += [
+            {"type": "OPEN_VALVE", "valve": "pot_air_out"},
+            {"type": "WAIT_MS", "durationMs": 3000},
+            {"type": "CLOSE_VALVE", "valve": "pot_air_out"},
+            {"type": "EMIT_EVENT", "eventName": "depressurise_done"},
+        ]
+
+    # ── line.prime_start ──
+    # Opens dispense valve and holds.
+    # Edge hub sends line.prime_stop when prime detected.
+    if cmd_name == "line.prime_start":
+        timeout_ms = payload.get("timeout_ms", 180000)
+        steps += [
+            {"type": "OPEN_VALVE", "valve": "dispense"},
+            {"type": "EMIT_EVENT", "eventName": "line_prime_started"},
+            {"type": "WAIT_FOR_CMD", "waitCmd": "line.prime_stop",
+                "timeoutMs": timeout_ms},
+        ]
+
+    # ── line.prime_stop ──
+    if cmd_name == "line.prime_stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valve": "dispense"},
+            {"type": "EMIT_EVENT", "eventName": "line_prime_stopped"},
+        ]
+
+    # ── dispense.open ──
+    # Open for exactly open_ms then close automatically.
+    if cmd_name == "dispense.open":
+        open_ms = payload.get("open_ms", 400)
+        steps += [
+            {"type": "OPEN_VALVE", "valve": "dispense"},
+            {"type": "WAIT_MS", "durationMs": open_ms},
+            {"type": "CLOSE_VALVE", "valve": "dispense"},
+            {"type": "EMIT_EVENT", "eventName": "dispense_complete"},
+        ]
+
+    # ── dispense.stop ──
+    # Emergency close — used on pass exit if dispense.open is still running
+    if cmd_name == "dispense.stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valve": "dispense"},
+            {"type": "EMIT_EVENT", "eventName": "dispense_stopped"},
+        ]
+
+    # ── program.stop ──
+    if cmd_name == "program.stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valve": "dispense"},
+            {"type": "CLOSE_VALVE", "valve": "paint_inlet"},
+            {"type": "CLOSE_VALVE", "valve": "pot_air_in"},
+            {"type": "EMIT_EVENT", "eventName": "program_stopped"},
+        ]
+
+    # ── system.emergency_stop ──
+    if cmd_name == "system.emergency_stop":
+        steps += [
+            {"type": "CLOSE_ALL_VALVES"},
+            {"type": "EMIT_EVENT", "eventName": "emergency_stop"},
+        ]
     
     if cmd_name == "demo.run":
             valves = DEVICE_MAP["valves"]

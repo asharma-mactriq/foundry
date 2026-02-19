@@ -67,86 +67,138 @@ class CommandExecutor:
                     traceback.print_exc()
 
 
-    def lifecycle_ack_received(self, data):
-            """
-            Processes command lifecycle events (received, started, completed).
-            'command.completed' is the trigger to unlock the queue.
-            """
-            cmd_id = data.get("commandId") or data.get("cmd_id")
-            event = data.get("event")
+    # def lifecycle_ack_received(self, data):
+    #         """
+    #         Processes command lifecycle events (received, started, completed).
+    #         'command.completed' is the trigger to unlock the queue.
+    #         """
 
-            # 1. Validation: Only process if it matches our active command
-            if not self.current_cmd or self.current_cmd["cmd_id"] != cmd_id:
-                return
+    #         print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
 
-            cmd_name = self.current_cmd.get("name")
+    #         cmd_id = data.get("commandId") or data.get("cmd_id")
+    #         event = data.get("event")
+
+    #         # 1. Validation: Only process if it matches our active command
+    #         if not self.current_cmd or self.current_cmd["cmd_id"] != cmd_id:
+    #             return
+
+            
+    #         if cmd is None or cmd.get("cmd_id") != cmd_id:
+    #             print(f"[EXECUTOR] WARNING: completed ACK for unknown cmd {cmd_id}")
+    #             return
+            
+    #         cmd_name = self.current_cmd.get("name")
+
+    #         # Stop the Scheduler from resending the command once the device acknowledges it
+    #         if event == "command.received":
+    #             command_store.update_status(cmd_id, "acked", data)
+                
+    #         elif event == "command.started":
+    #             command_store.update_status(cmd_id, "started", data)
+
+    #             from app.program.program_engine import program_engine
+
+    #             if program_engine:
+    #                 cmd_name = self.current_cmd.get("name")
+
+    #                 if cmd_name == "refill.start":
+    #                     program_engine.refill_state = "RUNNING"
+    #                     print("[EXECUTOR] Refill workflow running")
+
+                    
+
+    #         # ---------------------------
+
+    #         # 2. Release Lock: If completed, allow the next command to be popped from queue
+    #         if event == "command.completed":
+    #             # print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+    #             # Mark as completed in DB so history is accurate
+    #             command_store.update_status(cmd_id, "completed", data)
+
+    #             from app.program.program_engine import program_engine
+
+    #             if program_engine:
+    #                 cmd_name = self.current_cmd.get("name")
+
+    #                 # -------------------------------------
+    #                 # REFILL LIFECYCLE HANDLING
+    #                 # -------------------------------------
+    #                 if cmd_name == "refill.start":
+    #                     program_engine.refill_state = "IDLE"
+    #                     print("[EXECUTOR] Refill workflow completed → state reset")
+
+    #             from app.state.program_state import program_state
+
+    #             if cmd_name == "program.load":
+    #                 program_state.on_loaded()
+
+    #                 from app.program.program_engine import program_engine
+    #                 from app.state.machine_state import machine_state_manager
+
+    #                 if program_engine:
+    #                     program_engine.on_event(
+    #                         machine_state_manager.state,
+    #                         program_state
+    #                     )
+
+    #             elif cmd_name == "startup.sequence":
+    #                 program_state.on_startup_complete()
+
+    #             elif cmd_name == "program.stop":
+    #                 program_state.stop_program()
+
+    #             print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+    
+    #             self.current_cmd = None
+    #             self.sent_at = None
+    #         # # 2. Release Lock: If completed, allow the next command to be popped from queue
+    #         # if event == "command.completed":
+    #         #     print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+    #         #     self.current_cmd = None
+    #         #     self.sent_at = None
+
+
+    def lifecycle_ack_received(self, event: str, cmd_id: str):
+            """
+            Called from ACK listener when firmware sends
+            command.received / command.started / command.completed.
+            """
             print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
 
-            # Stop the Scheduler from resending the command once the device acknowledges it
-            if event == "command.received":
-                command_store.update_status(cmd_id, "acked", data)
-                
-            elif event == "command.started":
-                command_store.update_status(cmd_id, "started", data)
+            if event != "command.completed":
+                return
 
+            cmd = self._current_cmd
+            if cmd is None or cmd.get("cmd_id") != cmd_id:
+                print(f"[EXECUTOR] WARNING: completed ACK for unknown cmd {cmd_id}")
+                return
+
+            cmd_name = cmd.get("name")
+
+            # ── CHANGED: program.load → on_loaded() not on_startup_complete() ──
+            if cmd_name == "program.load":
+                program_state.on_loaded()
+
+            # ── CHANGED: startup.sequence → hand off to startup_orchestrator ──
+            elif cmd_name == "startup.sequence":
+                # Don't call on_startup_complete() — that no longer goes to READY.
+                # Instead, startup_orchestrator.begin() drives POT_FILLING onward.
+                from app.orchestrators.startup_orchestrator import startup_orchestrator
                 from app.program.program_engine import program_engine
+                profile = getattr(program_engine, "profile", None) if program_engine else None
+                startup_orchestrator.begin(profile=profile)
 
-                if program_engine:
-                    cmd_name = self.current_cmd.get("name")
+            elif cmd_name == "program.stop":
+                program_state.stop_program()
 
-                    if cmd_name == "refill.start":
-                        program_engine.refill_state = "RUNNING"
-                        print("[EXECUTOR] Refill workflow running")
+            # Release lock for all completions
+            print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+            with self._lock:
+                self._busy = False
+                self._current_cmd = None
 
-            # ---------------------------
-
-            # 2. Release Lock: If completed, allow the next command to be popped from queue
-            if event == "command.completed":
-                # print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
-                # Mark as completed in DB so history is accurate
-                command_store.update_status(cmd_id, "completed", data)
-
-                from app.program.program_engine import program_engine
-
-                if program_engine:
-                    cmd_name = self.current_cmd.get("name")
-
-                    # -------------------------------------
-                    # REFILL LIFECYCLE HANDLING
-                    # -------------------------------------
-                    if cmd_name == "refill.start":
-                        program_engine.refill_state = "IDLE"
-                        print("[EXECUTOR] Refill workflow completed → state reset")
-
-                from app.state.program_state import program_state
-
-                if cmd_name == "program.load":
-                    program_state.on_loaded()
-
-                    from app.program.program_engine import program_engine
-                    from app.state.machine_state import machine_state_manager
-
-                    if program_engine:
-                        program_engine.on_event(
-                            machine_state_manager.state,
-                            program_state
-                        )
-
-                elif cmd_name == "startup.sequence":
-                    program_state.on_startup_complete()
-
-                elif cmd_name == "program.stop":
-                    program_state.stop_program()
-
-                print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
-    
-                self.current_cmd = None
-                self.sent_at = None
-            # # 2. Release Lock: If completed, allow the next command to be popped from queue
-            # if event == "command.completed":
-            #     print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
-            #     self.current_cmd = None
-            #     self.sent_at = None
+            # Try next queued command
+            self._try_dispatch()
 
     def _guard_command(self, cmd: dict) -> bool:
 
@@ -350,35 +402,6 @@ class CommandExecutor:
 
 
     def _send_common(self, cmd):
-
-        # ==================================================
-        # 0. MODE / POLICY VALIDATION (NEW)
-        # ==================================================
-        # try:
-        #     spec = command_registry.get(cmd["name"])
-        #     mode_state = mode_manager.get()
-
-        #     if not spec.is_allowed_in_mode(mode_state):
-        #         command_store.update_status(
-        #             cmd["cmd_id"],
-        #             "blocked",
-        #             {"reason": "mode_not_allowed"}
-        #         )
-        #         print(f"[EXECUTOR] Blocked by mode policy: {cmd['name']}")
-        #         return
-
-        # except KeyError:
-        #     # Unknown command → block hard
-        #     command_store.update_status(
-        #         cmd["cmd_id"],
-        #         "blocked",
-        #         {"reason": "unknown_command"}
-        #     )
-        #     print(f"[EXECUTOR] Unknown command: {cmd['name']}")
-        #     return
-
-
-
     # 0. GUARD — FINAL SAFETY GATE
         if not self._guard_command(cmd):
             command_store.update_status(
