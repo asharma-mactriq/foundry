@@ -14,30 +14,6 @@
   },
 
   {
-    "id": "stop_on_high_pressure",
-    "priority": 150,
-    "cooldown_ms": 5000,
-    "condition": "machine.pressure > 1.5 and program.phase in ['startup','ready','running']",
-    "actions": [{
-      "type": "command",
-      "params": { "name": "program.stop" }
-    }]
-  },
-
-
-
-  {
-    "id": "stop_on_paint_empty",
-    "priority": 200,
-    "cooldown_ms": 15000,
-    "condition": "material.paint_confidence == 'LOW' and program.phase in ['startup','ready','running']",
-    "actions": [{
-      "type": "command",
-      "params": { "name": "program.stop" }
-    }]
-  },
-
-  {
     "id": "paint_low_warning",
     "priority": 50,
     "cooldown_ms": 10000,
