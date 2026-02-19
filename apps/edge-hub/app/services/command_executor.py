@@ -153,50 +153,64 @@ class CommandExecutor:
     #         #     self.sent_at = None
 
 
-    def lifecycle_ack_received(self, event: str, cmd_id: str):
+    def lifecycle_ack_received(self, data: dict):
         """
-        Called from ACK listener when firmware sends
-        command.received / command.started / command.completed.
+        Processes command lifecycle events (received, started, completed).
+        'command.completed' is the trigger to unlock the queue.
         """
+
+        cmd_id = data.get("commandId") or data.get("cmd_id")
+        event = data.get("event")
 
         print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
 
-        # We only unlock on completion
-        if event != "command.completed":
-            return
-
+        # 1️⃣ Validate active command
         if not self.current_cmd:
-            print("[EXECUTOR] No active command")
             return
 
         if self.current_cmd.get("cmd_id") != cmd_id:
-            print(f"[EXECUTOR] WARNING: completed ACK for unknown cmd {cmd_id}")
+            print(f"[EXECUTOR] WARNING: ACK for unknown cmd {cmd_id}")
             return
 
         cmd_name = self.current_cmd.get("name")
 
-        # -----------------------------------------
-        # DOMAIN-SPECIFIC POST COMPLETION HANDLERS
-        # -----------------------------------------
+        # 2️⃣ Intermediate states
+        if event == "command.received":
+            command_store.update_status(cmd_id, "acked", data)
+            return
+
+        if event == "command.started":
+            command_store.update_status(cmd_id, "started", data)
+
+            from app.program.program_engine import program_engine
+            if program_engine and cmd_name == "refill.start":
+                program_engine.refill_state = "RUNNING"
+                print("[EXECUTOR] Refill workflow running")
+
+            return
+
+        # 3️⃣ Completion unlock
+        if event != "command.completed":
+            return
+
+        command_store.update_status(cmd_id, "completed", data)
+
+        from app.program.program_engine import program_engine
+
+        if program_engine and cmd_name == "refill.start":
+            program_engine.refill_state = "IDLE"
+            print("[EXECUTOR] Refill workflow completed → state reset")
 
         if cmd_name == "program.load":
             program_state.on_loaded()
 
         elif cmd_name == "startup.sequence":
             from app.orchestrators.startup_orchestrator import startup_orchestrator
-            from app.program.program_engine import program_engine
-
             profile = getattr(program_engine, "profile", None) if program_engine else None
             startup_orchestrator.begin(profile=profile)
 
         elif cmd_name == "program.stop":
             program_state.stop_program()
-
-        # -----------------------------------------
-        # RELEASE LOCK
-        # -----------------------------------------
-
-        command_store.update_status(cmd_id, "completed", {})
 
         print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
 
