@@ -1,7 +1,7 @@
 # app/services/telemetry_service.py
 import time, json
 from types import SimpleNamespace
-
+from app.core.telemetry_validator import TelemetryValidator
 from app.orchestrators.state_orchestrator import state_orchestrator
 from app.services.rule_engine import get_rule_engine
 from app.state.material_state import material_state_manager
@@ -16,6 +16,8 @@ class TelemetryService:
         self.last_forward_ts = 0
         self.mqtt_client = None
         self.last_program_event_ts = 0
+        self.validator = TelemetryValidator()
+        self.last_valid = {}
 
 
     def set_mqtt_client(self, client):
@@ -23,6 +25,9 @@ class TelemetryService:
 
     def update(self, data):
         now = clock.mono()
+
+        clean = self.validator.sanitize(data, self.last_valid)
+        self.last_valid = clean
 
         # Store raw telemetry
         self.history.append(data)
@@ -32,9 +37,9 @@ class TelemetryService:
         # APPLY STATE MACHINE + PROGRAM ENGINE
         # ---------------------------------------
         try:
-            print("[TELEMETRY] update() called with:", data)
-            ms, ps = state_orchestrator.process(data)
-            
+            print("[TELEMETRY] update() called with:", clean)
+            ms, ps = state_orchestrator.process(clean)
+
             # from app.orchestrators.startup_orchestrator import startup_orchestrator
             # startup_orchestrator.process()
 
@@ -77,6 +82,7 @@ class TelemetryService:
         # ---------------------------------------
         self.latest = {
             "raw": data,
+            "clean": clean,     # this is what logic used
             "machine": ms.__dict__,
             "program": ps.serialize(),
         }
