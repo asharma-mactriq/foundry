@@ -78,6 +78,8 @@ class ProgramEngine:
     # ──────────────────────────────────────────────────────────────
     def on_event(self, machine, program):
         ps = program
+        print(f"[PROGRAM_ENGINE] phase={ps.phase}")
+
 
         if ps.phase == ProgramPhase.STARTED:
             return   # waiting for program.load ACK
