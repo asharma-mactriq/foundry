@@ -4,7 +4,7 @@ from app.state.machine_state import machine_state_manager
 from app.state.program_state import program_state, ProgramPhase
 from app.services.rule_engine import get_rule_engine
 from app.orchestrators.material_orchestrator import material_orchestrator
-from app.orchestrators.startup_orchestrator import startup_orchestrator
+# from app.orchestrators.startup_orchestrator import startup_orchestrator
 from app.state.system_state import system_state, SystemPhase
 from app.core import clock
 

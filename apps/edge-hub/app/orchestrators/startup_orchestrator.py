@@ -91,10 +91,14 @@ class StartupOrchestrator:
     # Primary signal: pot_weight rising
     # ──────────────────────────────────────────────────────────────
     def _handle_pot_filling(self, mat):
+
+
         from app.commands.helpers import create_and_queue_command
         p = self.profile
         now = time.time()
         current_kg = mat.current_pot_kg
+        
+        print("DEBUG POT_FILLING tick", mat.current_pot_kg)
 
         # ── Step 1: Send fill_start once ──
         if not self._fill_cmd_sent:

@@ -35,8 +35,8 @@ class TelemetryService:
             print("[TELEMETRY] update() called with:", data)
             ms, ps = state_orchestrator.process(data)
             
-            from app.orchestrators.startup_orchestrator import startup_orchestrator
-            startup_orchestrator.process()
+            # from app.orchestrators.startup_orchestrator import startup_orchestrator
+            # startup_orchestrator.process()
 
             # if program_engine and ps.last_event_ts:
             #     if ps.last_event_ts != self.last_program_event_ts:
