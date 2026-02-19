@@ -203,6 +203,9 @@ class CommandExecutor:
 
         if cmd_name == "program.load":
             program_state.on_loaded()
+              # 👇 TRIGGER STARTUP
+            from app.commands.helpers import create_and_queue_command
+            create_and_queue_command(name="startup.sequence", payload={})
 
         elif cmd_name == "startup.sequence":
             from app.orchestrators.startup_orchestrator import startup_orchestrator
