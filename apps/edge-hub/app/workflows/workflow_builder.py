@@ -191,6 +191,25 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     elif cmd_name == "demo.run":
         return _build_demo_workflow(payload, cmd_id)
+    
+    elif cmd_name == "line.prime_start":
+        timeout_ms = payload.get("timeout_ms", 180000)
+        steps += [
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "EMIT_EVENT", "eventName": "line_prime_started"},
+            {
+                "type": "WAIT_FOR_CMD",
+                "waitCmd": "line.prime_stop",
+                "timeoutMs": timeout_ms,
+            },
+        ]
+
+    elif cmd_name == "line.prime_stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "EMIT_EVENT", "eventName": "line_prime_stopped"},
+        ]
+
 
     else:
         print(f"[WORKFLOW] No workflow defined for: {cmd_name}")
