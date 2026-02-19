@@ -2,7 +2,7 @@ class TelemetryValidator:
 
     MAX_POT_KG = 10.0
     MAX_PRESSURE_BAR = 20.0
-    MAX_WEIGHT_JUMP_PER_CYCLE = 1.0   # kg (tune to system physics)
+    MAX_WEIGHT_JUMP_PER_CYCLE = 6.0   # kg (tune to system physics)
 
     def sanitize(self, raw: dict, last_valid: dict | None) -> dict:
         last_valid = last_valid or {}

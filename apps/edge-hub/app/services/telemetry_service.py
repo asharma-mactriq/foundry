@@ -29,7 +29,7 @@ class TelemetryService:
         clean = self.validator.sanitize(data, self.last_valid)
         # self.last_valid = clean
 
-        clean = self.validator.sanitize(data, self.last_valid)
+        # clean = self.validator.sanitize(data, self.last_valid)
 
         # Only update last_valid when weight is valid
         if clean.get("pot_weight_valid", 1):
