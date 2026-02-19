@@ -1,7 +1,4 @@
 # app/services/command_executor.py
-
-import cmd
-from unicodedata import name
 import uuid
 import time
 import json
@@ -12,7 +9,6 @@ from app.core import clock
 from app.commands.command_queue import command_queue
 from app.services.command_store import command_store
 from app.services.device_state import device_state
-from app.workflows.workflow_builder import build_workflow_for_command
 
 from app.state.machine_state import machine_state_manager, MachinePhase
 from app.state.program_state import program_state
@@ -22,7 +18,6 @@ from app.modes.mode_types import FaultMode
 
 from app.state.material_state import material_state_manager
 from app.commands.command_registry import command_registry
-from app.modes.mode_manager import mode_manager
 
 from app.state.system_state import system_state, SystemPhase
 
@@ -159,46 +154,54 @@ class CommandExecutor:
 
 
     def lifecycle_ack_received(self, event: str, cmd_id: str):
-            """
-            Called from ACK listener when firmware sends
-            command.received / command.started / command.completed.
-            """
-            print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
+        """
+        Called from ACK listener when firmware sends
+        command.received / command.started / command.completed.
+        """
 
-            if event != "command.completed":
-                return
+        print(f"[EXECUTOR] Lifecycle event: {event} for {cmd_id}")
 
-            cmd = self._current_cmd
-            if cmd is None or cmd.get("cmd_id") != cmd_id:
-                print(f"[EXECUTOR] WARNING: completed ACK for unknown cmd {cmd_id}")
-                return
+        # We only unlock on completion
+        if event != "command.completed":
+            return
 
-            cmd_name = cmd.get("name")
+        if not self.current_cmd:
+            print("[EXECUTOR] No active command")
+            return
 
-            # ── CHANGED: program.load → on_loaded() not on_startup_complete() ──
-            if cmd_name == "program.load":
-                program_state.on_loaded()
+        if self.current_cmd.get("cmd_id") != cmd_id:
+            print(f"[EXECUTOR] WARNING: completed ACK for unknown cmd {cmd_id}")
+            return
 
-            # ── CHANGED: startup.sequence → hand off to startup_orchestrator ──
-            elif cmd_name == "startup.sequence":
-                # Don't call on_startup_complete() — that no longer goes to READY.
-                # Instead, startup_orchestrator.begin() drives POT_FILLING onward.
-                from app.orchestrators.startup_orchestrator import startup_orchestrator
-                from app.program.program_engine import program_engine
-                profile = getattr(program_engine, "profile", None) if program_engine else None
-                startup_orchestrator.begin(profile=profile)
+        cmd_name = self.current_cmd.get("name")
 
-            elif cmd_name == "program.stop":
-                program_state.stop_program()
+        # -----------------------------------------
+        # DOMAIN-SPECIFIC POST COMPLETION HANDLERS
+        # -----------------------------------------
 
-            # Release lock for all completions
-            print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
-            with self._lock:
-                self._busy = False
-                self._current_cmd = None
+        if cmd_name == "program.load":
+            program_state.on_loaded()
 
-            # Try next queued command
-            self._try_dispatch()
+        elif cmd_name == "startup.sequence":
+            from app.orchestrators.startup_orchestrator import startup_orchestrator
+            from app.program.program_engine import program_engine
+
+            profile = getattr(program_engine, "profile", None) if program_engine else None
+            startup_orchestrator.begin(profile=profile)
+
+        elif cmd_name == "program.stop":
+            program_state.stop_program()
+
+        # -----------------------------------------
+        # RELEASE LOCK
+        # -----------------------------------------
+
+        command_store.update_status(cmd_id, "completed", {})
+
+        print(f"[EXECUTOR] SUCCESS: Release lock for {cmd_id}")
+
+        self.current_cmd = None
+        self.sent_at = None
 
     def _guard_command(self, cmd: dict) -> bool:
 
@@ -491,8 +494,8 @@ class CommandExecutor:
             print("[EXECUTOR] Failed to forward ACK:", e)
 
         # clear active command
-        self.current_cmd = None
-        self.sent_at = None
+        # self.current_cmd = None
+        # self.sent_at = None
 
 
     def _check_timeout(self):
@@ -613,8 +616,8 @@ class CommandExecutor:
         command_store.update_status(cmd_id, "acked", {"workflow": workflow_name})
         device_state.update_ack(cmd_id)
 
-        self.current_cmd = None
-        self.sent_at = None
+        # self.current_cmd = None
+        # self.sent_at = None
 
     def step_ack_received(self, data):
         cmd_id = data["commandId"]

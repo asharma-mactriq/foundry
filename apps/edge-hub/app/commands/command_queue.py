@@ -13,15 +13,35 @@ class CommandQueue:
             self.counter += 1
             heapq.heappush(self.q, (-cmd["priority"], self.counter, cmd))
 
+    # def pop_valid(self):
+    #     now = time.time()
+        
+    #     with self.lock:
+    #         while self.q:
+    #             _, _, cmd = heapq.heappop(self.q)
+    #             valid_until = cmd.get("valid_until")
+    #             if valid_until and now <= valid_until:
+    #                 return cmd
+    #     return None
+    
     def pop_valid(self):
         now = time.time()
+
         with self.lock:
             while self.q:
                 _, _, cmd = heapq.heappop(self.q)
+
                 valid_until = cmd.get("valid_until")
-                if valid_until and now <= valid_until:
-                    return cmd
+
+                if valid_until and now > valid_until:
+                    from app.services.command_store import command_store
+                    command_store.update_status(cmd["cmd_id"], "expired")
+                    continue
+
+                return cmd
+
         return None
+
 
 
 # import heapq
