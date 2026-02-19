@@ -125,19 +125,18 @@ class StartupOrchestrator:
 
         print("DEBUG POT_FILLING tick", mat.current_pot_kg)
 
-        # ── Step 1: Send fill_start once ──
-        # if not self._fill_cmd_sent:
-        #     print(f"[STARTUP_ORCH] Opening paint_inlet — target={p.pot_fill_target_kg}kg")
-        #     create_and_queue_command(
-        #         name="pot.fill_start",
-        #         payload={"target_kg": p.pot_fill_target_kg}
-        #     )
-        #     self._fill_cmd_sent = True
-        #     self._fill_phase_start_ts = now
-        #     self._fill_phase_start_weight = current_kg
-        #     self._fill_last_weight = current_kg
-        #     self._fill_last_weight_ts = now
-        #     return
+        if not self._fill_cmd_sent:
+            print(f"[STARTUP_ORCH] Opening paint_inlet — target={p.pot_fill_target_kg}kg")
+            create_and_queue_command(
+                name="pot.fill_start",
+                payload={"target_kg": p.pot_fill_target_kg}
+            )
+            self._fill_cmd_sent = True
+            self._fill_phase_start_ts = now
+            self._fill_phase_start_weight = current_kg
+            self._fill_last_weight = current_kg
+            self._fill_last_weight_ts = now
+            return
 
         # ── Step 2: Already sent fill_stop — wait for weight to settle ──
         if self._fill_stop_sent:

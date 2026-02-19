@@ -218,10 +218,10 @@ class CommandExecutor:
             profile = program_engine.profile
             startup_orchestrator.begin(profile=profile)
 
-            self.send_command({
-                "name": "pot.fill_start",
-                "payload": {"target_kg": profile.pot_fill_target_kg}
-            })
+            # self.send_command({
+            #     "name": "pot.fill_start",
+            #     "payload": {"target_kg": profile.pot_fill_target_kg}
+            # })
 
 
 
