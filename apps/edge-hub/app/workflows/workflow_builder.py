@@ -138,7 +138,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     elif cmd_name == "pot.fill_stop":
         steps += [
-            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
             {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
         ]
 

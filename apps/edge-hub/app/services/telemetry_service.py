@@ -27,7 +27,10 @@ class TelemetryService:
         now = clock.mono()
 
         clean = self.validator.sanitize(data, self.last_valid)
-        self.last_valid = clean
+        # self.last_valid = clean
+
+        if clean.get("pot_weight_valid", 1):
+            self.last_valid = clean
 
         # Store raw telemetry
         self.history.append(data)
