@@ -130,55 +130,56 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     elif cmd_name == "pot.fill_start":
         steps += [
-            {"type": "OPEN_VALVE", "valve": "paint_inlet"},
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
             {"type": "EMIT_EVENT", "eventName": "pot_fill_started"},
             {"type": "WAIT_FOR_CMD", "waitCmd": "pot.fill_stop"},
         ]
 
+
     elif cmd_name == "pot.fill_stop":
         steps += [
-            {"type": "CLOSE_VALVE", "valve": "paint_inlet"},
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
             {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
         ]
 
     elif cmd_name == "pot.pressurise":
         open_ms = payload.get("open_ms", 12000)
         steps += [
-            {"type": "OPEN_VALVE", "valve": "pot_air_in"},
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
             {"type": "EMIT_EVENT", "eventName": "pressurise_start"},
             {"type": "WAIT_MS", "durationMs": open_ms},
-            {"type": "CLOSE_VALVE", "valve": "pot_air_in"},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
             {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
         ]
 
     elif cmd_name == "pot.depressurise":
         steps += [
-            {"type": "OPEN_VALVE", "valve": "pot_air_out"},
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
             {"type": "WAIT_MS", "durationMs": 3000},
-            {"type": "CLOSE_VALVE", "valve": "pot_air_out"},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
             {"type": "EMIT_EVENT", "eventName": "depressurise_done"},
         ]
 
     elif cmd_name == "dispense.open":
         open_ms = payload.get("open_ms", 400)
         steps += [
-            {"type": "OPEN_VALVE", "valve": "dispense"},
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "WAIT_MS", "durationMs": open_ms},
-            {"type": "CLOSE_VALVE", "valve": "dispense"},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "EMIT_EVENT", "eventName": "dispense_complete"},
         ]
 
     elif cmd_name == "dispense.stop":
         steps += [
-            {"type": "CLOSE_VALVE", "valve": "dispense"},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "EMIT_EVENT", "eventName": "dispense_stopped"},
         ]
 
     elif cmd_name == "program.stop":
         steps += [
-            {"type": "CLOSE_VALVE", "valve": "dispense"},
-            {"type": "CLOSE_VALVE", "valve": "paint_inlet"},
-            {"type": "CLOSE_VALVE", "valve": "pot_air_in"},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
             {"type": "EMIT_EVENT", "eventName": "program_stopped"},
         ]
 
