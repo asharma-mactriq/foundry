@@ -207,6 +207,8 @@ class CommandExecutor:
                     "cmd": name,
                     "reason": reason,
                     "phase": str(ms.phase),
+                    "system": system_state.phase.value,
+                    "mode": modes["current"],
                     "pressure": ms.pressure,
                     "pot_volume_ml": mat.current_pot_kg,
                     # "program_running": ps.running,

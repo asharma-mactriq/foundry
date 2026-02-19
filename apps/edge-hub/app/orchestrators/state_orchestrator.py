@@ -113,10 +113,6 @@ class StateOrchestrator:
             machine=ms,
             program=ps,
             material=mat,
-
-            # machine=ms.__dict__,
-            # program=ps.serialize(),
-            # material=mat.__dict__,
         )
         if fired:
             print("[RULES] Fired:", fired)
