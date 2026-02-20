@@ -36,6 +36,8 @@ class StartupOrchestrator:
 
         # Line prime phase
         self._prime_cmd_sent = False
+        self._prime_stop_sent = False
+
         self._prime_start_ts = 0.0
         self._prime_start_weight = 0.0
         self._rate_window_start_ts = 0.0
@@ -59,6 +61,10 @@ class StartupOrchestrator:
 
         mat = material_state_manager.state
         now = time.time()
+
+        # Ignore invalid weight
+        if mat.current_pot_kg <= 0:
+            return
 
         current_kg = mat.current_pot_kg
         target_kg = self.profile.pot_fill_target_kg
@@ -342,7 +348,12 @@ class StartupOrchestrator:
             return   # not time to sample yet
 
         weight_in_window = self._rate_window_start_weight - mat.current_pot_kg
-        current_rate = weight_in_window / rate_window_elapsed  # kg/s (positive = drain)
+        # current_rate = weight_in_window / rate_window_elapsed  # kg/s (positive = drain)
+
+        if rate_window_elapsed <= 0:
+            return
+        current_rate = weight_in_window / rate_window_elapsed
+
 
         # Update peak
         if current_rate > self._peak_drop_rate:
@@ -361,10 +372,21 @@ class StartupOrchestrator:
         )
 
         # ── Only check for prime after minimum time ──
-        if elapsed < p.line_prime_min_time_s:
-            return
+        # if elapsed < p.line_prime_min_time_s:
+        #     return
 
-        # ── Nozzle crack detection: rate exceeded threshold ──
+        # # ── Nozzle crack detection: rate exceeded threshold ──
+        # if not self._nozzle_cracked:
+        #     if current_rate >= p.line_prime_nozzle_crack_rate_kg_s:
+        #         self._nozzle_cracked = True
+        #         self._nozzle_crack_ts = now
+        #         print(
+        #             f"[STARTUP_ORCH] Nozzle crack detected — "
+        #             f"rate={current_rate*1000:.1f}g/s at t={elapsed:.0f}s"
+        #         )
+        #     return  # wait for crack before confirming
+
+        # ── Detect crack immediately (do NOT wait for min time) ──
         if not self._nozzle_cracked:
             if current_rate >= p.line_prime_nozzle_crack_rate_kg_s:
                 self._nozzle_cracked = True
@@ -373,7 +395,15 @@ class StartupOrchestrator:
                     f"[STARTUP_ORCH] Nozzle crack detected — "
                     f"rate={current_rate*1000:.1f}g/s at t={elapsed:.0f}s"
                 )
-            return  # wait for crack before confirming
+
+        # If crack not yet detected → cannot finish
+        if not self._nozzle_cracked:
+            return
+
+        # Only allow completion AFTER minimum prime time
+        if elapsed < p.line_prime_min_time_s:
+            return
+
 
         # ── Confirm stable flow after crack ──
         time_since_crack = now - self._nozzle_crack_ts
@@ -383,9 +413,19 @@ class StartupOrchestrator:
                 f"stable for {time_since_crack:.1f}s after nozzle crack "
                 f"total_drain={total_drain_kg*1000:.0f}g elapsed={elapsed:.0f}s"
             )
-            create_and_queue_command(name="line.prime_stop", payload={})
-            program_state.on_line_primed()   # → READY
-            material_state_manager.state.line_primed = True
+            # create_and_queue_command(name="line.prime_stop", payload={})
+            # program_state.on_line_primed()   # → READY
+            # material_state_manager.state.line_primed = True
+
+            if not hasattr(self, "_prime_stop_sent"):
+                self._prime_stop_sent = False
+
+            if not self._prime_stop_sent:
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+
 
 
 startup_orchestrator = StartupOrchestrator()

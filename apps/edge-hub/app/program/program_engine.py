@@ -7,6 +7,7 @@ from app.state.material_state import material_state_manager
 from app.services.command_executor import CommandExecutor
 from app.services.rule_engine import get_rule_engine
 from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
+from app.orchestrators.mid_refill_orchestrator import MidRefillOrchestrator
 
 
 class ProgramEngine:
@@ -28,13 +29,16 @@ class ProgramEngine:
         self._startup_sent = False
 
         # Mid-run refill state machine
-        self._refill_state = "IDLE"       # IDLE | FILLING | SETTLING
-        self._refill_weight_before = 0.0
-        self._refill_fill_stop_sent = False
-        self._refill_settle_start = 0.0
-        self._last_refill_ts = 0.0
-        self._refill_attempts = 0
-        self.consecutive_failed_refills = 0
+        # Mid-refill orchestrator
+        self.mid_refill_orchestrator = MidRefillOrchestrator(executor)
+
+        # self._refill_state = "IDLE"       # IDLE | FILLING | SETTLING
+        # self._refill_weight_before = 0.0
+        # self._refill_fill_stop_sent = False
+        # self._refill_settle_start = 0.0
+        # self._last_refill_ts = 0.0
+        # self._refill_attempts = 0
+        # self.consecutive_failed_refills = 0
 
     # ──────────────────────────────────────────────────────────────
     # API
@@ -48,14 +52,16 @@ class ProgramEngine:
         self.profile = get_profile(profile_name)
 
         # Reset all state
-        self._startup_sent = False
-        self._refill_state = "IDLE"
-        self._refill_weight_before = 0.0
-        self._refill_fill_stop_sent = False
-        self._refill_settle_start = 0.0
-        self._last_refill_ts = 0.0
-        self._refill_attempts = 0
-        self.consecutive_failed_refills = 0
+        self.mid_refill_orchestrator.reset()
+
+        # self._startup_sent = False
+        # self._refill_state = "IDLE"
+        # self._refill_weight_before = 0.0
+        # self._refill_fill_stop_sent = False
+        # self._refill_settle_start = 0.0
+        # self._last_refill_ts = 0.0
+        # self._refill_attempts = 0
+        # self.consecutive_failed_refills = 0
 
         # Reset startup orchestrator
         from app.orchestrators.startup_orchestrator import startup_orchestrator
@@ -105,7 +111,7 @@ class ProgramEngine:
             return
 
         if ps.phase == ProgramPhase.MID_REFILLING:
-            self._handle_mid_refill()
+            self.mid_refill_orchestrator.process()
             return
 
         if ps.phase not in (ProgramPhase.READY, ProgramPhase.RUNNING):
@@ -113,7 +119,15 @@ class ProgramEngine:
 
         # Mid-run refill check (only in RUNNING)
         if ps.phase == ProgramPhase.RUNNING:
-            self._maybe_trigger_refill()
+            mat = material_state_manager.state
+            if (
+                mat.current_pot_kg < self.profile.mid_refill_threshold_kg
+                and not self.executor.is_busy()
+            ):
+                self.mid_refill_orchestrator.begin(self.profile)
+
+        # if ps.phase == ProgramPhase.RUNNING:
+        #     self._maybe_trigger_refill()
 
         # Gap/dispense events
         event = ps.last_event
@@ -186,86 +200,86 @@ class ProgramEngine:
     # Triggered from RUNNING when pot drops below profile threshold.
     # State machine: IDLE → FILLING → SETTLING → IDLE
     # ──────────────────────────────────────────────────────────────
-    def _maybe_trigger_refill(self):
-        mat = material_state_manager.state
-        p = self.profile
-        now = time.time()
+    # def _maybe_trigger_refill(self):
+    #     mat = material_state_manager.state
+    #     p = self.profile
+    #     now = time.time()
 
-        if mat.current_pot_kg >= p.mid_refill_threshold_kg:
-            return
-        if now - self._last_refill_ts < p.mid_refill_cooldown_s:
-            return
-        if self._refill_state != "IDLE":
-            return
-        if self.executor.is_busy():
-            return
-        if self.consecutive_failed_refills >= p.mid_refill_max_failures:
-            print(
-                f"[PROGRAM_ENGINE] Refill lockout — "
-                f"{self.consecutive_failed_refills} consecutive failures "
-                f"(reservoir likely empty)"
-            )
-            return
+    #     if mat.current_pot_kg >= p.mid_refill_threshold_kg:
+    #         return
+    #     if now - self._last_refill_ts < p.mid_refill_cooldown_s:
+    #         return
+    #     if self._refill_state != "IDLE":
+    #         return
+    #     if self.executor.is_busy():
+    #         return
+    #     if self.consecutive_failed_refills >= p.mid_refill_max_failures:
+    #         print(
+    #             f"[PROGRAM_ENGINE] Refill lockout — "
+    #             f"{self.consecutive_failed_refills} consecutive failures "
+    #             f"(reservoir likely empty)"
+    #         )
+    #         return
 
-        print(
-            f"[PROGRAM_ENGINE] Mid-run refill triggered — "
-            f"pot={mat.current_pot_kg:.3f}kg < threshold={p.mid_refill_threshold_kg}kg"
-        )
+    #     print(
+    #         f"[PROGRAM_ENGINE] Mid-run refill triggered — "
+    #         f"pot={mat.current_pot_kg:.3f}kg < threshold={p.mid_refill_threshold_kg}kg"
+    #     )
 
-        self._refill_weight_before = mat.current_pot_kg
-        self._refill_fill_stop_sent = False
-        self._refill_state = "FILLING"
-        self._last_refill_ts = now
-        self._refill_attempts += 1
+    #     self._refill_weight_before = mat.current_pot_kg
+    #     self._refill_fill_stop_sent = False
+    #     self._refill_state = "FILLING"
+    #     self._last_refill_ts = now
+    #     self._refill_attempts += 1
 
-        program_state.begin_mid_refill()
+    #     program_state.begin_mid_refill()
 
-        self.executor.send_command({
-            "name": "pot.fill_start",
-            "payload": {"target_kg": p.mid_refill_target_kg}
-        })
+    #     self.executor.send_command({
+    #         "name": "pot.fill_start",
+    #         "payload": {"target_kg": p.mid_refill_target_kg}
+    #     })
 
-    def _handle_mid_refill(self):
-        mat = material_state_manager.state
-        p = self.profile
-        now = time.time()
+    # def _handle_mid_refill(self):
+    #     mat = material_state_manager.state
+    #     p = self.profile
+    #     now = time.time()
 
-        if self._refill_state == "FILLING":
-            if not self._refill_fill_stop_sent:
-                if mat.current_pot_kg >= p.mid_refill_target_kg:
-                    print(
-                        f"[PROGRAM_ENGINE] Mid-refill target reached "
-                        f"({mat.current_pot_kg:.3f}kg) — closing inlet"
-                    )
-                    self.executor.send_command({
-                        "name": "pot.fill_stop",
-                        "payload": {}
-                    })
-                    self._refill_fill_stop_sent = True
-                    self._refill_settle_start = now
-                    self._refill_state = "SETTLING"
+    #     if self._refill_state == "FILLING":
+    #         if not self._refill_fill_stop_sent:
+    #             if mat.current_pot_kg >= p.mid_refill_target_kg:
+    #                 print(
+    #                     f"[PROGRAM_ENGINE] Mid-refill target reached "
+    #                     f"({mat.current_pot_kg:.3f}kg) — closing inlet"
+    #                 )
+    #                 self.executor.send_command({
+    #                     "name": "pot.fill_stop",
+    #                     "payload": {}
+    #                 })
+    #                 self._refill_fill_stop_sent = True
+    #                 self._refill_settle_start = now
+    #                 self._refill_state = "SETTLING"
 
-        if self._refill_state == "SETTLING":
-            if now - self._refill_settle_start >= p.mid_refill_settle_s:
-                gain = mat.current_pot_kg - self._refill_weight_before
-                print(
-                    f"[PROGRAM_ENGINE] Mid-refill settle done — "
-                    f"gain={gain:.3f}kg (min_expected={p.mid_refill_min_gain_kg}kg)"
-                )
+    #     if self._refill_state == "SETTLING":
+    #         if now - self._refill_settle_start >= p.mid_refill_settle_s:
+    #             gain = mat.current_pot_kg - self._refill_weight_before
+    #             print(
+    #                 f"[PROGRAM_ENGINE] Mid-refill settle done — "
+    #                 f"gain={gain:.3f}kg (min_expected={p.mid_refill_min_gain_kg}kg)"
+    #             )
 
-                if gain < p.mid_refill_min_gain_kg:
-                    self.consecutive_failed_refills += 1
-                    print(
-                        f"[PROGRAM_ENGINE] Refill underperformed — "
-                        f"suspect reservoir low "
-                        f"({self.consecutive_failed_refills}/{p.mid_refill_max_failures})"
-                    )
-                else:
-                    self.consecutive_failed_refills = 0
-                    print("[PROGRAM_ENGINE] Refill successful")
+    #             if gain < p.mid_refill_min_gain_kg:
+    #                 self.consecutive_failed_refills += 1
+    #                 print(
+    #                     f"[PROGRAM_ENGINE] Refill underperformed — "
+    #                     f"suspect reservoir low "
+    #                     f"({self.consecutive_failed_refills}/{p.mid_refill_max_failures})"
+    #                 )
+    #             else:
+    #                 self.consecutive_failed_refills = 0
+    #                 print("[PROGRAM_ENGINE] Refill successful")
 
-                self._refill_state = "IDLE"
-                program_state.on_mid_refill_done()  # → RUNNING
+    #             self._refill_state = "IDLE"
+    #             program_state.on_mid_refill_done()  # → RUNNING
 
     # ──────────────────────────────────────────────────────────────
     # Helpers

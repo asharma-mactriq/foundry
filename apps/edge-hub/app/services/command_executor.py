@@ -214,9 +214,15 @@ class CommandExecutor:
         elif cmd_name == "startup.sequence":
             program_state.begin_startup()
 
+            from app.modes.mode_types import OperationMode
+            mode_manager.set_operation(OperationMode.auto)
+
+
             from app.orchestrators.startup_orchestrator import startup_orchestrator
             profile = program_engine.profile
             startup_orchestrator.begin(profile=profile)
+
+
 
             # self.send_command({
             #     "name": "pot.fill_start",
@@ -355,7 +361,7 @@ class CommandExecutor:
         # MATERIAL SAFETY
         # --------------------------------------------------
         if name.startswith("dispense"):
-            if not mat.dispense_line_primed:
+            if not mat.line_primed:
                 return block("dispense line not primed")
 
             if mat.current_pot_kg <= MIN_USABLE_KG:

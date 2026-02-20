@@ -116,6 +116,29 @@ class CommandRegistry:
             description="Firmware hardware initialisation sequence"
         ))
 
+        self.register(CommandSpec(
+            name="res.pressurise",
+            group="reservoir",
+            allowed_operation_modes=[],
+            allowed_process_modes=[],
+            payload_schema={"open_ms": "int"},
+            timeout_ms=15000,
+            priority=80,
+            description="Pressurise reservoir air inlet"
+        ))
+
+        self.register(CommandSpec(
+            name="res.depressurise",
+            group="reservoir",
+            allowed_operation_modes=[],
+            allowed_process_modes=[],
+            payload_schema={},
+            timeout_ms=10000,
+            priority=80,
+            description="Vent reservoir pressure"
+        ))
+
+
         # ── POT FILL ──────────────────────────────────────────────
         # Opens paint_inlet valve. Firmware holds it open until told to stop.
         # Edge hub watches weight and sends pot.fill_stop when target reached.
