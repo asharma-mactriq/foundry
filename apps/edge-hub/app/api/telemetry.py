@@ -8,11 +8,16 @@ router = APIRouter()
 
 @router.post("/")
 async def ingest(data: dict):
-    enriched = {
-        "deviceId": "edge1",
-        "ts_edge": time.time(),
-        **data
-    }
+    print("⚠️ HTTP telemetry disabled")
+    return {"status": "disabled"}
 
-    telemetry_service.update(enriched)
-    return {"status": "ok"}
+# @router.post("/")
+# async def ingest(data: dict):
+#     enriched = {
+#         "deviceId": "edge1",
+#         "ts_edge": time.time(),
+#         **data
+#     }
+
+#     telemetry_service.update(enriched)
+#     return {"status": "ok"}
