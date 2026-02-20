@@ -71,14 +71,14 @@ class MidRefillOrchestrator:
 
         # 4️⃣ Wait for target
         if self.state == "WAIT_TARGET":
-            if mat.current_pot_kg >= p.mid_refill_target_kg:
-                print("[MID_REFILL] Target reached")
-                self.executor.send_command({
-                    "name": "pot.fill_stop",
-                    "payload": {}
-                })
-                self.settle_start = time.time()
-                self.state = "SETTLING"
+            # if mat.current_pot_kg >= p.mid_refill_target_kg:
+            print("[MID_REFILL] Target reached")
+            self.executor.send_command({
+                "name": "pot.fill_stop",
+                "payload": {}
+            })
+            self.settle_start = time.time()
+            self.state = "SETTLING"
             return
 
         # 5️⃣ Settling
