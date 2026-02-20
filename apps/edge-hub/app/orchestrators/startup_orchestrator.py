@@ -63,10 +63,12 @@ class StartupOrchestrator:
         now = time.time()
 
         # Ignore invalid weight
-        if mat.current_pot_kg <= 0:
-            return
+        # if mat.current_pot_kg <= 0:
+        #     return
 
-        current_kg = mat.current_pot_kg
+        # current_kg = mat.current_pot_kg or 0.0
+
+        current_kg = mat.current_pot_kg or 0.0
         target_kg = self.profile.pot_fill_target_kg
 
         # ─────────────────────────────────────────
@@ -123,11 +125,12 @@ class StartupOrchestrator:
     # Primary signal: pot_weight rising
     # ──────────────────────────────────────────────────────────────
     def _handle_pot_filling(self, mat):
-
+        weight_valid = mat.current_pot_kg is not None and mat.current_pot_kg > 0
 
         from app.commands.helpers import create_and_queue_command
         p = self.profile
         now = time.time()
+
         current_kg = mat.current_pot_kg
 
         print("DEBUG POT_FILLING tick", mat.current_pot_kg)
@@ -170,15 +173,23 @@ class StartupOrchestrator:
 
         # ── Early flow-start check: if weight hasn't moved at all ──
         elapsed_since_start = now - self._fill_phase_start_ts
-        if elapsed_since_start > p.pot_fill_flow_start_timeout_s:
-            if weight_gained_total < p.pot_fill_min_gain_kg:
-                print(
-                    f"[STARTUP_ORCH] ABORT: Pot fill — no flow detected after "
-                    f"{elapsed_since_start:.0f}s (gained {weight_gained_total:.3f}kg)"
-                )
+        # if elapsed_since_start > p.pot_fill_flow_start_timeout_s:
+        #     if weight_gained_total < p.pot_fill_min_gain_kg:
+        #         print(
+        #             f"[STARTUP_ORCH] ABORT: Pot fill — no flow detected after "
+        #             f"{elapsed_since_start:.0f}s (gained {weight_gained_total:.3f}kg)"
+        #         )
+        #         create_and_queue_command(name="pot.fill_stop", payload={})
+        #         program_state.abort("pot_fill_no_flow")
+        #         return
+
+        if not weight_valid:
+            if not self._fill_stop_sent and elapsed_since_start >= p.pot_fill_open_time_s:
+                print("[STARTUP_ORCH] Weight invalid — closing inlet (time-based)")
                 create_and_queue_command(name="pot.fill_stop", payload={})
-                program_state.abort("pot_fill_no_flow")
-                return
+                self._fill_stop_sent = True
+                self._settle_start_ts = now
+            return
 
         # ── Total timeout with progressive extension ──
         if elapsed_since_start > p.pot_fill_total_timeout_s:
@@ -297,6 +308,12 @@ class StartupOrchestrator:
     # then confirm it stays elevated for stable_confirm_s.
     # ──────────────────────────────────────────────────────────────
     def _handle_line_priming(self, mat):
+
+        weight_valid = (
+            mat.current_pot_kg is not None
+            and mat.current_pot_kg > 0
+        )
+        
         from app.commands.helpers import create_and_queue_command
         p = self.profile
         now = time.time()
@@ -320,6 +337,21 @@ class StartupOrchestrator:
             return
 
         elapsed = now - self._prime_start_ts
+
+        # ─────────────────────────────────────────
+        # Fallback: weight invalid → time-based prime
+        # ─────────────────────────────────────────
+        if not weight_valid:
+            if (
+                not self._prime_stop_sent
+                and elapsed >= p.line_prime_min_time_s
+            ):
+                print("[STARTUP_ORCH] Weight invalid — assuming primed (time-based)")
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+            return
         total_drain_kg = self._prime_start_weight - mat.current_pot_kg
 
         # ── Hard timeout ──

@@ -39,7 +39,7 @@ class PaintProfile:
     # Settle time after closing inlet before pressurising
     # Weight cell needs to stabilise — thick paste sloshes less, but give it time
     pot_fill_settle_s: float = 3.0
-
+    pot_fill_open_time_s: float = 10.0
     # ── Pressurisation ────────────────────────────────────────────
     # Fixed open time for pot_air_in (time-based, not pressure-based)
     # 6L pot at 3 bar input — 10-15s is typical
