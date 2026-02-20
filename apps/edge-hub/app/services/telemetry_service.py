@@ -25,6 +25,7 @@ class TelemetryService:
 
     def update(self, data):
         now = clock.mono()
+        print("SOURCE TS:", data.get("ts"), "EDGE TS:", data.get("ts_edge"))
 
         clean = self.validator.sanitize(data, self.last_valid)
         # self.last_valid = clean
@@ -40,7 +41,7 @@ class TelemetryService:
 
 
         # Store raw telemetry
-        self.history.append(data)
+        self.history.append(clean)
         self.history = self.history[-2000:]
 
         # ---------------------------------------
