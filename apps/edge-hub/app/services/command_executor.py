@@ -529,30 +529,6 @@ class CommandExecutor:
 
         json_wf = json.dumps(wf)
 
-# --------------------------------------------------
-# INTERRUPT HANDLING
-# --------------------------------------------------
-
-        if self.current_cmd:
-            active_name = self.current_cmd.get("name")
-            incoming_name = cmd.get("name")
-
-            # If incoming is valid interrupt for active command
-            expected_interrupt = self.interrupt_map.get(active_name)
-
-            if expected_interrupt == incoming_name:
-                print(f"[EXECUTOR] Interrupt allowed: {incoming_name} → {active_name}")
-                # Do NOT clear current_cmd
-                # Do NOT block
-                # Allow sending stop command
-            else:
-                print(f"[EXECUTOR] Blocked: {incoming_name} while {active_name} active")
-                command_store.update_status(
-                    cmd["cmd_id"],
-                    "blocked",
-                    {"reason": f"active_command:{active_name}"}
-                )
-                return
 
         # 3. Set active command
         self.current_cmd = cmd
@@ -566,6 +542,33 @@ class CommandExecutor:
         self.client.publish("devices/edge1/workflow/start", json_wf)
 
 
+    def _send_interrupt(self, cmd):
+        from app.workflows.workflow_builder import build_workflow_for_command
+
+        wf = build_workflow_for_command(
+            cmd["name"],
+            cmd["payload"],
+            cmd["cmd_id"]
+        )
+
+        if not wf:
+            command_store.update_status(
+                cmd["cmd_id"],
+                "ignored",
+                {"reason": "idempotent_noop"}
+            )
+            return
+
+        json_wf = json.dumps(wf)
+
+        command_store.update_status(
+            cmd["cmd_id"],
+            "sent",
+            {"sent_at": clock.mono()}
+        )
+
+        print(f"[EXECUTOR → DEVICE] INTERRUPT {cmd['cmd_id']} | {cmd['name']}")
+        self.client.publish("devices/edge1/workflow/start", json_wf)
 
     def ack_received(self, cmd_id, *args, **kwargs):
         if not self.current_cmd:
