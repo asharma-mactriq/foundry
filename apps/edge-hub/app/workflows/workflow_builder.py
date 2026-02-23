@@ -136,11 +136,11 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         ]
 
 
-    elif cmd_name == "pot.fill_stop":
-        steps += [
-            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
-            {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
-        ]
+    # elif cmd_name == "pot.fill_stop":
+    #     steps += [
+    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
+    #         {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
+    #     ]
 
     elif cmd_name == "pot.pressurise":
         open_ms = payload.get("open_ms", 12000)
@@ -223,11 +223,11 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             },
         ]
 
-    elif cmd_name == "line.prime_stop":
-        steps += [
-            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
-            {"type": "EMIT_EVENT", "eventName": "line_prime_stopped"},
-        ]
+    # elif cmd_name == "line.prime_stop":
+    #     steps += [
+    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+    #         {"type": "EMIT_EVENT", "eventName": "line_prime_stopped"},
+    #     ]
 
 
     else:

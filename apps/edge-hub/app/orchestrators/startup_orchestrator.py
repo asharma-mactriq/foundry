@@ -1,5 +1,6 @@
 # app/orchestrators/startup_orchestrator.py
 
+import json
 import time
 from app.state.program_state import program_state, ProgramPhase
 from app.state.material_state import material_state_manager
@@ -52,6 +53,12 @@ class StartupOrchestrator:
         self._reset_state()
         print("[STARTUP_ORCH] Reset")
 
+    def _emit_event(self, event_name: str):
+        payload = {
+            "event": event_name
+        }
+        self.client.publish("devices/edge1/events", json.dumps(payload))
+
     def begin(self, profile: PaintProfile = None):
         """
         Called once when startup.sequence ACK completes.
@@ -84,7 +91,7 @@ class StartupOrchestrator:
                 f"({current_kg:.3f}kg >= {target_kg}kg) — skipping fill"
             )    
             create_and_queue_command(name="pot.fill_stop", payload={})
-
+            # create_and_queue_command(name="pot.fill_stop", payload={})
             program_state.begin_pot_filling()   # enter POT_FILLING first
             program_state.on_pot_filled()   # → PRESSURISING
             return
@@ -354,6 +361,7 @@ class StartupOrchestrator:
             ):
                 print("[STARTUP_ORCH] Weight invalid — assuming primed (time-based)")
                 create_and_queue_command(name="line.prime_stop", payload={})
+                # self._emit_event("line.prime_stop")
                 self._prime_stop_sent = True
                 program_state.on_line_primed()
                 material_state_manager.state.line_primed = True

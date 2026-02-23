@@ -29,10 +29,10 @@ class CommandExecutor:
         self.client = mqtt_client
         self.running = False
         self.tick = tick_ms / 1000.0
-        self.interrupt_map = {
-            "pot.fill_start": "pot.fill_stop",
-            "line.prime_start": "line.prime_stop",
-        }
+        # self.interrupt_map = {
+        #     "pot.fill_start": "pot.fill_stop",
+        #     "line.prime_start": "line.prime_stop",
+        # }
 
         # currently active command waiting for ACK
         self.current_cmd = None
@@ -51,29 +51,29 @@ class CommandExecutor:
             time.sleep(self.tick)
 
             # if waiting for ACK, check timeout
-            # if self.current_cmd:
-            #     self._check_timeout()
-            #     continue
-
             if self.current_cmd:
                 self._check_timeout()
-
-                # Allow interrupt commands to pass through
-                next_cmd = command_queue.peek_valid()  # you must add this method
-
-                if next_cmd:
-                    active_name = self.current_cmd.get("name")
-                    incoming_name = next_cmd.get("name")
-                    expected_interrupt = self.interrupt_map.get(active_name)
-
-                    if incoming_name == expected_interrupt:
-                        cmd = command_queue.pop_valid()
-                        try:
-                            self._send_interrupt(cmd)
-                        except Exception as e:
-                            print("[EXECUTOR CRASH]", e)
-
                 continue
+
+            # if self.current_cmd:
+            #     self._check_timeout()
+
+            #     # Allow interrupt commands to pass through
+            #     next_cmd = command_queue.peek_valid()  # you must add this method
+
+            #     if next_cmd:
+            #         active_name = self.current_cmd.get("name")
+            #         incoming_name = next_cmd.get("name")
+            #         expected_interrupt = self.interrupt_map.get(active_name)
+
+            #         if incoming_name == expected_interrupt:
+            #             cmd = command_queue.pop_valid()
+            #             try:
+            #                 self._send_interrupt(cmd)
+            #             except Exception as e:
+            #                 print("[EXECUTOR CRASH]", e)
+
+            #     continue
 
             # fetch next command from queue
             cmd = command_queue.pop_valid()
@@ -480,7 +480,10 @@ class CommandExecutor:
 
 
     def _send_common(self, cmd):
-    # 0. GUARD — FINAL SAFETY GATE
+
+        name = cmd.get("name", "")
+
+        # 0. GUARD — FINAL SAFETY GATE
         if not self._guard_command(cmd):
             command_store.update_status(
                 cmd["cmd_id"],
@@ -489,6 +492,32 @@ class CommandExecutor:
             )
             print(f"[EXECUTOR] Command blocked by guard: {cmd['name']}")
             return
+        
+        # --------------------------------------------------
+    # WAIT_FOR_CMD EVENTS (DO NOT BUILD WORKFLOW)
+    # --------------------------------------------------
+        if name in ("pot.fill_stop", "line.prime_stop"):
+            # self.current_cmd = cmd
+            # self.sent_at = clock.mono()
+
+            command_store.update_status(
+                cmd["cmd_id"],
+                "sent",
+                {"sent_at": self.sent_at}
+            )
+
+            print(f"[EXECUTOR → DEVICE] EVENT {cmd['cmd_id']} | {name}")
+
+            self.client.publish(
+                "devices/edge1/commands",
+                json.dumps({
+                    "command": name,
+                    "cmd_id": cmd["cmd_id"]
+                })
+            )
+
+            return
+
 
         if cmd["name"] == "dispense.open":
             ms = machine_state_manager.state
@@ -542,33 +571,33 @@ class CommandExecutor:
         self.client.publish("devices/edge1/workflow/start", json_wf)
 
 
-    def _send_interrupt(self, cmd):
-        from app.workflows.workflow_builder import build_workflow_for_command
+    # def _send_interrupt(self, cmd):
+    #     from app.workflows.workflow_builder import build_workflow_for_command
 
-        wf = build_workflow_for_command(
-            cmd["name"],
-            cmd["payload"],
-            cmd["cmd_id"]
-        )
+    #     wf = build_workflow_for_command(
+    #         cmd["name"],
+    #         cmd["payload"],
+    #         cmd["cmd_id"]
+    #     )
 
-        if not wf:
-            command_store.update_status(
-                cmd["cmd_id"],
-                "ignored",
-                {"reason": "idempotent_noop"}
-            )
-            return
+    #     if not wf:
+    #         command_store.update_status(
+    #             cmd["cmd_id"],
+    #             "ignored",
+    #             {"reason": "idempotent_noop"}
+    #         )
+    #         return
 
-        json_wf = json.dumps(wf)
+    #     json_wf = json.dumps(wf)
 
-        command_store.update_status(
-            cmd["cmd_id"],
-            "sent",
-            {"sent_at": clock.mono()}
-        )
+    #     command_store.update_status(
+    #         cmd["cmd_id"],
+    #         "sent",
+    #         {"sent_at": clock.mono()}
+    #     )
 
-        print(f"[EXECUTOR → DEVICE] INTERRUPT {cmd['cmd_id']} | {cmd['name']}")
-        self.client.publish("devices/edge1/workflow/start", json_wf)
+    #     print(f"[EXECUTOR → DEVICE] INTERRUPT {cmd['cmd_id']} | {cmd['name']}")
+    #     self.client.publish("devices/edge1/workflow/start", json_wf)
 
     def ack_received(self, cmd_id, *args, **kwargs):
         if not self.current_cmd:
