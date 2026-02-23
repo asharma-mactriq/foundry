@@ -1,43 +1,23 @@
 [
-  {
-    "id": "stop_on_paint_empty",
-    "enabled": true,
-    "priority": 200,
-    "cooldown_ms": 15000,
-    "condition": "material.paint_confidence == 'LOW' and program.phase in ['running']",
-    "actions": [
-      {
-        "type": "command",
-        "params": {"name": "program.stop"}
-      },
-      {
-        "type": "emit_alert",
-        "params": {
-          "level": "critical",
-          "message": "Pot empty during running — program stopped"
-        }
+{
+  "id": "periodic_dispense_2s",
+  "enabled": true,
+  "priority": 190,
+  "cooldown_ms": 2000,
+  "condition": "program.phase == 'running' ",
+  "actions": [
+    {
+      "type": "command",
+      "params": {
+        "name": "dispense.open",
+        "payload": { "open_ms": 400 }
       }
-    ],
-    "meta": {"note": "Only fires in RUNNING, not during startup fill phases"}
-  },
-
-  {
-    "id": "paint_low_warning",
-    "enabled": true,
-    "priority": 50,
-    "cooldown_ms": 30000,
-    "condition": "material.current_pot_kg < material.pot_min_kg and material.pot_min_kg > 0 and program.phase in ['running', 'ready']",
-    "actions": [
-      {
-        "type": "emit_alert",
-        "params": {
-          "level": "warning",
-          "message": "Paint level low — mid-run refill will trigger soon"
-        }
-      }
-    ],
-    "meta": {"note": "Warning only — program_engine handles actual refill"}
-  },
+    }
+  ],
+  "meta": {
+    "note": "Dispense pulse every 2s while running and gap visible"
+  }
+},
 
   {
     "id": "stop_on_overpressure",

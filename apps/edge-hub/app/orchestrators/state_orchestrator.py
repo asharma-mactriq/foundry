@@ -8,6 +8,7 @@ from app.orchestrators.startup_orchestrator import startup_orchestrator
 from app.state.system_state import system_state, SystemPhase
 from app.core import clock
 from app.modes.mode_manager import mode_manager
+from app.modes.mode_types import ProcessMode
 
 class StateOrchestrator:
 
