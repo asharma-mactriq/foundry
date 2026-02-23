@@ -42,7 +42,30 @@ class CommandQueue:
 
         return None
 
+def peek_valid(self):
+    now = time.time()
 
+    with self.lock:
+        # We cannot just look at q[0] because it might be expired.
+        # We must scan without modifying heap.
+
+        best_candidate = None
+
+        for priority, counter, cmd in self.q:
+            valid_until = cmd.get("valid_until")
+
+            if valid_until and now > valid_until:
+                continue
+
+            # Because heap stores (-priority, counter, cmd),
+            # smaller tuple = higher priority.
+            if best_candidate is None:
+                best_candidate = (priority, counter, cmd)
+            else:
+                if (priority, counter) < (best_candidate[0], best_candidate[1]):
+                    best_candidate = (priority, counter, cmd)
+
+        return best_candidate[2] if best_candidate else None
 
 # import heapq
 # import time

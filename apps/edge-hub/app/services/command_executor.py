@@ -29,6 +29,10 @@ class CommandExecutor:
         self.client = mqtt_client
         self.running = False
         self.tick = tick_ms / 1000.0
+        self.interrupt_map = {
+            "pot.fill_start": "pot.fill_stop",
+            "line.prime_start": "line.prime_stop",
+        }
 
         # currently active command waiting for ACK
         self.current_cmd = None
@@ -47,8 +51,28 @@ class CommandExecutor:
             time.sleep(self.tick)
 
             # if waiting for ACK, check timeout
+            # if self.current_cmd:
+            #     self._check_timeout()
+            #     continue
+
             if self.current_cmd:
                 self._check_timeout()
+
+                # Allow interrupt commands to pass through
+                next_cmd = command_queue.peek_valid()  # you must add this method
+
+                if next_cmd:
+                    active_name = self.current_cmd.get("name")
+                    incoming_name = next_cmd.get("name")
+                    expected_interrupt = self.interrupt_map.get(active_name)
+
+                    if incoming_name == expected_interrupt:
+                        cmd = command_queue.pop_valid()
+                        try:
+                            self._send_interrupt(cmd)
+                        except Exception as e:
+                            print("[EXECUTOR CRASH]", e)
+
                 continue
 
             # fetch next command from queue
@@ -505,6 +529,30 @@ class CommandExecutor:
 
         json_wf = json.dumps(wf)
 
+# --------------------------------------------------
+# INTERRUPT HANDLING
+# --------------------------------------------------
+
+        if self.current_cmd:
+            active_name = self.current_cmd.get("name")
+            incoming_name = cmd.get("name")
+
+            # If incoming is valid interrupt for active command
+            expected_interrupt = self.interrupt_map.get(active_name)
+
+            if expected_interrupt == incoming_name:
+                print(f"[EXECUTOR] Interrupt allowed: {incoming_name} → {active_name}")
+                # Do NOT clear current_cmd
+                # Do NOT block
+                # Allow sending stop command
+            else:
+                print(f"[EXECUTOR] Blocked: {incoming_name} while {active_name} active")
+                command_store.update_status(
+                    cmd["cmd_id"],
+                    "blocked",
+                    {"reason": f"active_command:{active_name}"}
+                )
+                return
 
         # 3. Set active command
         self.current_cmd = cmd

@@ -5,6 +5,7 @@ from app.state.program_state import program_state, ProgramPhase
 from app.state.material_state import material_state_manager
 from app.state.machine_state import machine_state_manager
 from app.config.paint_profile import PaintProfile, DEFAULT_PROFILE
+# from app.services.command_executor import executor
 
 
 class StartupOrchestrator:
@@ -75,10 +76,15 @@ class StartupOrchestrator:
         # 1️⃣ Skip fill if already above target
         # ─────────────────────────────────────────
         if current_kg >= target_kg:
+
+            from app.commands.helpers import create_and_queue_command
+
             print(
                 f"[STARTUP_ORCH] Pot already above target "
                 f"({current_kg:.3f}kg >= {target_kg}kg) — skipping fill"
-            )
+            )    
+            create_and_queue_command(name="pot.fill_stop", payload={})
+
             program_state.begin_pot_filling()   # enter POT_FILLING first
             program_state.on_pot_filled()   # → PRESSURISING
             return
