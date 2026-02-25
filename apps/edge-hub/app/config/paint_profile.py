@@ -63,10 +63,10 @@ class PaintProfile:
 
     # Minimum time before even checking for prime completion
     # Thick paste in 5ft line: 30-60s minimum
-    line_prime_min_time_s: float = 2.0
+    line_prime_min_time_s: float = 1.0
 
     # Hard timeout — abort if not primed by this time
-    line_prime_timeout_s: float = 6.0
+    line_prime_timeout_s: float = 2.0
 
     # Safety: close and abort if this much paint drained without prime detection
     # 5ft × 1/2" pipe volume ≈ 0.5L ≈ 0.5-0.8kg for thick paste
@@ -82,7 +82,7 @@ class PaintProfile:
     line_prime_stable_confirm_s: float = 0.5
 
     # Rate sampling window for line prime detection
-    line_prime_rate_window_s: float = 2.0
+    line_prime_rate_window_s: float = 0.05
 
     # ── Dispense ──────────────────────────────────────────────────
     # Solenoid open duration per gap (ms)
