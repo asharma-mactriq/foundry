@@ -38,13 +38,13 @@ class PaintProfile:
 
     # Settle time after closing inlet before pressurising
     # Weight cell needs to stabilise — thick paste sloshes less, but give it time
-    pot_fill_settle_s: float = 3.0
-    pot_fill_open_time_s: float = 10.0
+    pot_fill_settle_s: float = 2.0
+    pot_fill_open_time_s: float = 6.0
     # ── Pressurisation ────────────────────────────────────────────
     # Fixed open time for pot_air_in (time-based, not pressure-based)
     # 6L pot at 3 bar input — 10-15s is typical
     # Thick paste needs higher pressure to flow → err on longer side
-    pressurise_open_s: float = 12.0
+    pressurise_open_s: float = 4.0
 
     # Hard ceiling — never exceed this open time regardless of anything
     pressurise_max_open_s: float = 25.0
@@ -63,7 +63,7 @@ class PaintProfile:
 
     # Minimum time before even checking for prime completion
     # Thick paste in 5ft line: 30-60s minimum
-    line_prime_min_time_s: float = 30.0
+    line_prime_min_time_s: float = 10.0
 
     # Hard timeout — abort if not primed by this time
     line_prime_timeout_s: float = 180.0
