@@ -496,28 +496,28 @@ class CommandExecutor:
         # --------------------------------------------------
     # WAIT_FOR_CMD EVENTS (DO NOT BUILD WORKFLOW)
     # --------------------------------------------------
-        if name in ("pot.fill_stop", "line.prime_stop"):
+        # if name in ("pot.fill_stop", "line.prime_stop"):
 
-            self.current_cmd = cmd
-            self.sent_at = clock.mono()
+        #     self.current_cmd = cmd
+        #     self.sent_at = clock.mono()
 
-            command_store.update_status(
-                cmd["cmd_id"],
-                "sent",
-                {"sent_at": self.sent_at}
-            )
+        #     command_store.update_status(
+        #         cmd["cmd_id"],
+        #         "sent",
+        #         {"sent_at": self.sent_at}
+        #     )
 
-            print(f"[EXECUTOR → DEVICE] EVENT {cmd['cmd_id']} | {name}")
+        #     print(f"[EXECUTOR → DEVICE] EVENT {cmd['cmd_id']} | {name}")
 
-            self.client.publish(
-                "devices/edge1/commands",
-                json.dumps({
-                    "command": name,
-                    "cmd_id": cmd["cmd_id"]
-                })
-            )
+        #     self.client.publish(
+        #         "devices/edge1/commands",
+        #         json.dumps({
+        #             "command": name,
+        #             "cmd_id": cmd["cmd_id"]
+        #         })
+        #     )
 
-            return
+        #     return
 
 
         if cmd["name"] == "dispense.open":
