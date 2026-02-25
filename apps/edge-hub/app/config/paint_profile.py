@@ -66,20 +66,20 @@ class PaintProfile:
     line_prime_min_time_s: float = 2.0
 
     # Hard timeout — abort if not primed by this time
-    line_prime_timeout_s: float = 10.0
+    line_prime_timeout_s: float = 6.0
 
     # Safety: close and abort if this much paint drained without prime detection
     # 5ft × 1/2" pipe volume ≈ 0.5L ≈ 0.5-0.8kg for thick paste
     # Allow 2x for safety margin
-    line_prime_max_drain_kg: float = 1.5
+    line_prime_max_drain_kg: float = 0.4
 
     # Drop rate (kg/s) that indicates nozzles have cracked open
     # Thick paste: lower rate due to viscosity — tune from logs
     # Start conservative, reduce if prime detection is too late
-    line_prime_nozzle_crack_rate_kg_s: float = 0.005   # 5g/s
+    line_prime_nozzle_crack_rate_kg_s: float = 0.02   # 5g/s
 
     # After nozzle crack detected, confirm stable flow for this long before declaring primed
-    line_prime_stable_confirm_s: float = 5.0
+    line_prime_stable_confirm_s: float = 0.5
 
     # Rate sampling window for line prime detection
     line_prime_rate_window_s: float = 2.0

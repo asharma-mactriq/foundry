@@ -451,26 +451,66 @@ class StartupOrchestrator:
             return
 
 
-        # ── Confirm stable flow after crack ──
-        time_since_crack = now - self._nozzle_crack_ts
-        if time_since_crack >= p.line_prime_stable_confirm_s:
+        # ─────────────────────────────────────────
+        # HARD DRAIN SAFETY (industrial protection)
+        # ─────────────────────────────────────────
+
+        if total_drain_kg >= 0.7:   # 700g max physical allowance
+            print(
+                f"[STARTUP_ORCH] SAFETY: Excess drain "
+                f"{total_drain_kg:.3f}kg — closing prime valve"
+            )
+
+            if not self._prime_stop_sent:
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.abort("line_prime_excess_drain")
+
+            return
+
+        # ─────────────────────────────────────────
+        # Finish priming immediately after:
+        #   1) Nozzle crack detected
+        #   2) Minimum prime time satisfied
+        # ─────────────────────────────────────────
+
+        if self._nozzle_cracked and elapsed >= p.line_prime_min_time_s:
+
             print(
                 f"[STARTUP_ORCH] Line PRIMED — "
-                f"stable for {time_since_crack:.1f}s after nozzle crack "
-                f"total_drain={total_drain_kg*1000:.0f}g elapsed={elapsed:.0f}s"
+                f"crack_detected elapsed={elapsed:.1f}s "
+                f"total_drain={total_drain_kg*1000:.0f}g"
             )
-            # create_and_queue_command(name="line.prime_stop", payload={})
-            # program_state.on_line_primed()   # → READY
-            # material_state_manager.state.line_primed = True
-
-            if not hasattr(self, "_prime_stop_sent"):
-                self._prime_stop_sent = False
 
             if not self._prime_stop_sent:
                 create_and_queue_command(name="line.prime_stop", payload={})
                 self._prime_stop_sent = True
                 program_state.on_line_primed()
                 material_state_manager.state.line_primed = True
+
+            return
+
+
+        # ── Confirm stable flow after crack ──
+        # time_since_crack = now - self._nozzle_crack_ts
+        # if time_since_crack >= p.line_prime_stable_confirm_s:
+        #     print(
+        #         f"[STARTUP_ORCH] Line PRIMED — "
+        #         f"stable for {time_since_crack:.1f}s after nozzle crack "
+        #         f"total_drain={total_drain_kg*1000:.0f}g elapsed={elapsed:.0f}s"
+        #     )
+        #     # create_and_queue_command(name="line.prime_stop", payload={})
+        #     # program_state.on_line_primed()   # → READY
+        #     # material_state_manager.state.line_primed = True
+
+        #     if not hasattr(self, "_prime_stop_sent"):
+        #         self._prime_stop_sent = False
+
+        #     if not self._prime_stop_sent:
+        #         create_and_queue_command(name="line.prime_stop", payload={})
+        #         self._prime_stop_sent = True
+        #         program_state.on_line_primed()
+        #         material_state_manager.state.line_primed = True
 
 
 
