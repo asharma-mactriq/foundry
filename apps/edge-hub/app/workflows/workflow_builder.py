@@ -132,15 +132,14 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         steps += [
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
             {"type": "EMIT_EVENT", "eventName": "pot_fill_started"},
-            {"type": "WAIT_FOR_CMD", "waitCmd": "pot.fill_stop"},
         ]
 
 
-    # elif cmd_name == "pot.fill_stop":
-    #     steps += [
-    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
-    #         {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
-    #     ]
+    elif cmd_name == "pot.fill_stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["paint_inlet"]},
+            {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
+        ]
 
     elif cmd_name == "pot.pressurise":
         open_ms = payload.get("open_ms", 12000)
@@ -161,7 +160,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         ]
 
     elif cmd_name == "dispense.open":
-        open_ms = payload.get("open_ms", 400)
+        open_ms = payload.get("open_ms", 1000)
         steps += [
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "WAIT_MS", "durationMs": open_ms},
@@ -212,22 +211,16 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
         return _build_demo_workflow(payload, cmd_id)
     
     elif cmd_name == "line.prime_start":
-        timeout_ms = payload.get("timeout_ms", 180000)
         steps += [
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "EMIT_EVENT", "eventName": "line_prime_started"},
-            {
-                "type": "WAIT_FOR_CMD",
-                "waitCmd": "line.prime_stop",
-                "timeoutMs": timeout_ms,
-            },
         ]
 
-    # elif cmd_name == "line.prime_stop":
-    #     steps += [
-    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
-    #         {"type": "EMIT_EVENT", "eventName": "line_prime_stopped"},
-    #     ]
+    elif cmd_name == "line.prime_stop":
+        steps += [
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "EMIT_EVENT", "eventName": "line_prime_stopped"},
+        ]
 
 
     else:
