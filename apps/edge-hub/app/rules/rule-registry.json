@@ -1,10 +1,11 @@
 [
+
 {
-  "id": "periodic_dispense_2s",
+  "id": "dispense_on_gap",
   "enabled": true,
   "priority": 190,
-  "cooldown_ms": 2000,
-  "condition": "program.phase == 'running' ",
+  "cooldown_ms": 200,
+  "condition": "program.phase == 'running' and machine.phase == 'REST_DISPENSE_EDGE' and material.line_primed == True and material.current_pot_kg > 0.3 and machine.gap == 1",
   "actions": [
     {
       "type": "command",
@@ -13,10 +14,7 @@
         "payload": { "open_ms": 400 }
       }
     }
-  ],
-  "meta": {
-    "note": "Dispense pulse every 2s while running and gap visible"
-  }
+  ]
 },
 
   {
