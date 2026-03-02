@@ -159,6 +159,21 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "EMIT_EVENT", "eventName": "depressurise_done"},
         ]
 
+    elif cmd_name == "pot.vent_open":
+        # Opens pot_air_out and holds — no auto-close.
+        # mid_refill_orchestrator sends pot.vent_close when fill is done.
+        steps += [
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+            {"type": "EMIT_EVENT", "eventName": "pot_vent_opened"},
+        ]
+
+    elif cmd_name == "pot.vent_close":
+        # Closes pot_air_out after fill is complete.
+        steps += [
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+            {"type": "EMIT_EVENT", "eventName": "pot_vent_closed"},
+        ]
+
     elif cmd_name == "dispense.open":
         open_ms = payload.get("open_ms", 1000)
         steps += [

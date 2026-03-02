@@ -189,6 +189,30 @@ class CommandRegistry:
             description="Open pot_air_out to release pot pressure"
         ))
 
+
+        self.register(CommandSpec(
+            name="pot.vent_open",
+            group="pot",
+            allowed_operation_modes=[],   # unrestricted
+            allowed_process_modes=[],
+            payload_schema={},
+            timeout_ms=3000,
+            priority=75,
+            description="Open pot_air_out and hold open — used during fill to vent displaced headspace air"
+        ))
+
+        self.register(CommandSpec(
+            name="pot.vent_close",
+            group="pot",
+            allowed_operation_modes=[],
+            allowed_process_modes=[],
+            payload_schema={},
+            timeout_ms=3000,
+            priority=75,
+            description="Close pot_air_out after fill complete"
+        ))
+
+
         # ── LINE PRIMING ──────────────────────────────────────────
         # Opens dispense solenoid for line priming.
         # Different from dispense.open because:

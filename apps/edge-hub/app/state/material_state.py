@@ -1,26 +1,35 @@
 # app/state/material_state.py
 
+from __future__ import annotations
 from dataclasses import dataclass
-import time
+from typing import Optional
 
 
 @dataclass
 class MaterialState:
     # ── Pot ───────────────────────────────────────────────────────
     pot_pressure: float = 0.0
-    current_pot_kg: float = 0.0
-    pot_min_kg: float = 0.0     # from firmware telemetry
+
+    # Optional — None until the first valid pot_weight_absolute
+    # telemetry reading arrives. Defaulting to 0.0 would be wrong:
+    # 0.0 means "pot is empty" which is different from "no reading yet",
+    # and the delta filter in material_orchestrator would treat the
+    # first real reading as a small delta and silently drop it.
+    current_pot_kg: Optional[float] = None
+
+    pot_min_kg: float = 0.0
     pot_filled: bool = False
     line_primed: bool = False
 
     # ── Reservoir ─────────────────────────────────────────────────
-    # Weight is treated as unreliable — used as soft hint only
     reservoir_weight_raw: float = 0.0
-    reservoir_weight_valid: bool = False  # firmware says sensor is trustworthy
+    reservoir_weight_valid: bool = False
     res_min_kg: float = 0.0
 
-    # ── Refill outcome tracking (the reliable reservoir signal) ───
-    # Exposed here so rule_engine can read it directly
+    # ── Refill outcome tracking ───────────────────────────────────
+    # Written by mid_refill_orchestrator after each refill settle.
+    # Lives here so rule_engine can read it without importing
+    # program_engine — avoids circular dependency.
     consecutive_failed_refills: int = 0
     last_refill_gain_kg: float = 0.0
     last_refill_weight_before: float = 0.0
@@ -34,8 +43,9 @@ class MaterialState:
     # ── Confidence ────────────────────────────────────────────────
     paint_confidence: str = "UNKNOWN"   # HIGH | LOW | UNKNOWN
 
-    # ── Events ───────────────────────────────────────────────────
-    last_event: str = None
+    # ── Events ────────────────────────────────────────────────────
+    # Optional — None when no event has occurred yet
+    last_event: Optional[str] = None
     last_event_ts: float = 0.0
 
 
@@ -45,6 +55,54 @@ class MaterialStateManager:
 
 
 material_state_manager = MaterialStateManager()
+
+# # app/state/material_state.py
+
+# from dataclasses import dataclass
+# import time
+
+
+# @dataclass
+# class MaterialState:
+#     # ── Pot ───────────────────────────────────────────────────────
+#     pot_pressure: float = 0.0
+#     current_pot_kg: float = 0.0
+#     pot_min_kg: float = 0.0     # from firmware telemetry
+#     pot_filled: bool = False
+#     line_primed: bool = False
+
+#     # ── Reservoir ─────────────────────────────────────────────────
+#     # Weight is treated as unreliable — used as soft hint only
+#     reservoir_weight_raw: float = 0.0
+#     reservoir_weight_valid: bool = False  # firmware says sensor is trustworthy
+#     res_min_kg: float = 0.0
+
+#     # ── Refill outcome tracking (the reliable reservoir signal) ───
+#     # Exposed here so rule_engine can read it directly
+#     consecutive_failed_refills: int = 0
+#     last_refill_gain_kg: float = 0.0
+#     last_refill_weight_before: float = 0.0
+
+#     # ── Dispense tracking ─────────────────────────────────────────
+#     estimated_dispensed_kg: float = 0.0
+#     dispensing_active: bool = False
+#     dispense_start_ts: float = 0.0
+#     last_flow_ts: float = 0.0
+
+#     # ── Confidence ────────────────────────────────────────────────
+#     paint_confidence: str = "UNKNOWN"   # HIGH | LOW | UNKNOWN
+
+#     # ── Events ───────────────────────────────────────────────────
+#     last_event: str = None
+#     last_event_ts: float = 0.0
+
+
+# class MaterialStateManager:
+#     def __init__(self):
+#         self.state = MaterialState()
+
+
+# material_state_manager = MaterialStateManager()
 
 # # app/state/material_state.py
 # from dataclasses import dataclass

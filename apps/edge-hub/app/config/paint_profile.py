@@ -84,6 +84,21 @@ class PaintProfile:
     # Rate sampling window for line prime detection
     line_prime_rate_window_s: float = 0.05
 
+    # Prime detection strategy:
+    #   "open_pipe"     — open end, no nozzle. Prime detected by drain volume.
+    #   "spring_nozzle" — nozzles at end. Prime detected by crack rate spike.
+    line_prime_mode: str = "open_pipe"
+
+    # Volume of paint needed to fill the line from pot to end (kg).
+    # Used only in open_pipe mode.
+    # Calculate: pipe_volume_litres × paint_density_kg_per_litre
+    #
+    # Your system: 5ft × 0.5" ID pipe
+    #   Volume = π × (0.0064m)² × 1.524m = ~0.000197 m³ = 0.197L
+    #   Thick paste density ~1.3 kg/L → 0.197 × 1.3 = ~0.256kg
+    #   Set to 0.25 as a safe starting point. Tune down if prime detects late.
+    line_prime_line_volume_kg: float = 0.25
+
     # ── Dispense ──────────────────────────────────────────────────
     # Solenoid open duration per gap (ms)
     # This is the SOLENOID open time, not the actual paint-out time
@@ -135,24 +150,36 @@ class PaintProfile:
 
 # ── Built-in Profiles ─────────────────────────────────────────────────────────
 
-# Use this until you have real measurements
+# # Use this until you have real measurements
+# DEFAULT_PROFILE = PaintProfile(
+#     name="default",
+#     description="Conservative defaults for unknown paint — tune from here"
+# )
+
 DEFAULT_PROFILE = PaintProfile(
     name="default",
-    description="Conservative defaults for unknown paint — tune from here"
+    description="Conservative defaults — open pipe end",
+    line_prime_mode="open_pipe",
+    line_prime_line_volume_kg=0.25,
+    line_prime_min_time_s=5.0,       # give pressure time to stabilise
+    line_prime_timeout_s=60.0,       # abort if 0.25kg not drained in 60s
+    line_prime_max_drain_kg=0.5,     # safety cap: never drain more than 500g
 )
 
 # Thick paste (fabric paint, Fevicol-like consistency)
 THICK_PASTE_PROFILE = PaintProfile(
     name="thick_paste",
-    description="High viscosity paste paint — slow fill, long prime, high lags",
+    description="High viscosity paste — open pipe, slow fill",
+    line_prime_mode="open_pipe",
+    line_prime_line_volume_kg=0.25,
+    line_prime_min_time_s=10.0,      # thick paste moves slowly
+    line_prime_timeout_s=120.0,
+    line_prime_max_drain_kg=0.5,
+    line_prime_nozzle_crack_rate_kg_s=0.003,
     pot_fill_target_kg=3.0,
     pot_fill_flow_start_timeout_s=12.0,
-    pot_fill_total_timeout_s=120.0,
     pressurise_open_s=15.0,
-    line_prime_min_time_s=45.0,
-    line_prime_timeout_s=240.0,
-    line_prime_max_drain_kg=2.0,
-    line_prime_nozzle_crack_rate_kg_s=0.003,
+    pot_fill_total_timeout_s=120.0,
     dispense_open_ms=600,
     nozzle_open_lag_ms=500,
     nozzle_close_lag_ms=300,
