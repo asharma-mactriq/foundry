@@ -34,8 +34,16 @@ def start_program(request: Request):
 
 @router.post("/stop")
 def stop_program(request: Request):
+    from app.modes.mode_manager import mode_manager
+    from app.modes.mode_types import OperationMode, ProcessMode
+    
     program_engine = request.app.state.program_engine
     program_engine.stop_program()
+
+     # Reset modes so next program.load is allowed
+    mode_manager.set_operation(OperationMode.manual)
+    mode_manager.set_process(ProcessMode.idle)
+
     return {"ok": True}
 
 

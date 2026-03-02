@@ -74,10 +74,27 @@ class ProgramEngine:
             "payload": {"program_id": config.get("program_id", "default")}
         })
 
+    def abort(self, reason: str = None):
+        from app.modes.mode_manager import mode_manager
+        from app.modes.mode_types import OperationMode, ProcessMode
+        self.set_phase(ProgramPhase.ABORT, reason or "abort")
+        mode_manager.set_operation(OperationMode.manual)
+        mode_manager.set_process(ProcessMode.idle)
+
     def stop_program(self):
         print("[PROGRAM_ENGINE] STOP PROGRAM")
+        from app.modes.mode_manager import mode_manager
+        from app.modes.mode_types import OperationMode, ProcessMode
+
         self.executor.send_command({"name": "program.stop", "payload": {}})
         program_state.stop_program()
+
+        # Always reset modes — program.load requires manual + idle
+        mode_manager.set_operation(OperationMode.manual)
+        mode_manager.set_process(ProcessMode.idle)
+        print("[PROGRAM_ENGINE] Modes reset → manual/idle")
+
+
 
     # ──────────────────────────────────────────────────────────────
     # Main event loop — called every telemetry tick
