@@ -71,12 +71,12 @@ class PaintProfile:
     # Safety: close and abort if this much paint drained without prime detection
     # 5ft × 1/2" pipe volume ≈ 0.5L ≈ 0.5-0.8kg for thick paste
     # Allow 2x for safety margin
-    line_prime_max_drain_kg: float = 0.4
+    line_prime_max_drain_kg: float = 1.2
 
     # Drop rate (kg/s) that indicates nozzles have cracked open
     # Thick paste: lower rate due to viscosity — tune from logs
     # Start conservative, reduce if prime detection is too late
-    line_prime_nozzle_crack_rate_kg_s: float = 0.02   # 5g/s
+    line_prime_nozzle_crack_rate_kg_s: float = 1.0   # 1kg/s
 
     # After nozzle crack detected, confirm stable flow for this long before declaring primed
     line_prime_stable_confirm_s: float = 0.5
