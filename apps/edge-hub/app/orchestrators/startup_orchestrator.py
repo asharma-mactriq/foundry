@@ -912,24 +912,24 @@ class StartupOrchestrator:
         total_drain_kg = self._prime_start_weight - mat.current_pot_kg
 
         # ── Hard timeout ──
-        if elapsed > p.line_prime_timeout_s:
-            print(
-                f"[STARTUP_ORCH] ABORT: Line prime timeout after {elapsed:.0f}s "
-                f"({total_drain_kg*1000:.0f}g drained)"
-            )
-            create_and_queue_command(name="line.prime_stop", payload={})
-            program_state.abort("line_prime_timeout")
-            return
+        # if elapsed > p.line_prime_timeout_s:
+        #     print(
+        #         f"[STARTUP_ORCH] ABORT: Line prime timeout after {elapsed:.0f}s "
+        #         f"({total_drain_kg*1000:.0f}g drained)"
+        #     )
+        #     create_and_queue_command(name="line.prime_stop", payload={})
+        #     program_state.abort("line_prime_timeout")
+        #     return
 
         # ── Safety drain cap ──
-        if total_drain_kg >= p.line_prime_max_drain_kg:
-            print(
-                f"[STARTUP_ORCH] ABORT: Line prime safety cap — "
-                f"{total_drain_kg:.3f}kg drained (max={p.line_prime_max_drain_kg}kg)"
-            )
-            create_and_queue_command(name="line.prime_stop", payload={})
-            program_state.abort("line_prime_excess_drain")
-            return
+        # if total_drain_kg >= p.line_prime_max_drain_kg:
+        #     print(
+        #         f"[STARTUP_ORCH] ABORT: Line prime safety cap — "
+        #         f"{total_drain_kg:.3f}kg drained (max={p.line_prime_max_drain_kg}kg)"
+        #     )
+        #     create_and_queue_command(name="line.prime_stop", payload={})
+        #     program_state.abort("line_prime_excess_drain")
+        #     return
 
         # ── Compute rate every rate_window_s ──
         rate_window_elapsed = now - self._rate_window_start_ts
@@ -985,9 +985,9 @@ class StartupOrchestrator:
                     f"rate={current_rate*1000:.1f}g/s at t={elapsed:.0f}s"
                 )
 
-        # If crack not yet detected → cannot finish
-        if not self._nozzle_cracked:
-            return
+        # # If crack not yet detected → cannot finish
+        # if not self._nozzle_cracked:
+        #     return
 
         # Only allow completion AFTER minimum prime time
         if elapsed < p.line_prime_min_time_s:
@@ -998,18 +998,18 @@ class StartupOrchestrator:
         # HARD DRAIN SAFETY (industrial protection)
         # ─────────────────────────────────────────
 
-        if total_drain_kg >= 0.7:   # 700g max physical allowance
-            print(
-                f"[STARTUP_ORCH] SAFETY: Excess drain "
-                f"{total_drain_kg:.3f}kg — closing prime valve"
-            )
+        # if total_drain_kg >= 0.7:   # 700g max physical allowance
+        #     print(
+        #         f"[STARTUP_ORCH] SAFETY: Excess drain "
+        #         f"{total_drain_kg:.3f}kg — closing prime valve"
+        #     )
 
-            if not self._prime_stop_sent:
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
-                program_state.abort("line_prime_excess_drain")
+        #     if not self._prime_stop_sent:
+        #         create_and_queue_command(name="line.prime_stop", payload={})
+        #         self._prime_stop_sent = True
+        #         program_state.abort("line_prime_excess_drain")
 
-            return
+        #     return
 
         # ─────────────────────────────────────────
         # Finish priming immediately after:

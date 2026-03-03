@@ -63,7 +63,7 @@ class PaintProfile:
 
     # Minimum time before even checking for prime completion
     # Thick paste in 5ft line: 30-60s minimum
-    line_prime_min_time_s: float = 1.0
+    line_prime_min_time_s: float = 2.0
 
     # Hard timeout — abort if not primed by this time
     line_prime_timeout_s: float = 2.0
