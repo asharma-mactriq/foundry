@@ -183,11 +183,23 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "EMIT_EVENT", "eventName": "dispense_complete"},
         ]
 
+    elif cmd_name == "dispense.start":
+        steps += [
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "EMIT_EVENT", "eventName": "dispense_started"},
+        ]
+
     elif cmd_name == "dispense.stop":
         steps += [
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "EMIT_EVENT", "eventName": "dispense_stopped"},
         ]
+
+    # elif cmd_name == "dispense.stop":
+    #     steps += [
+    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+    #         {"type": "EMIT_EVENT", "eventName": "dispense_stopped"},
+    #     ]
     
     elif cmd_name == "res.pressurise":
         open_ms = payload.get("open_ms", 4000)

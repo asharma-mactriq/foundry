@@ -255,6 +255,17 @@ class CommandRegistry:
         ))
 
         self.register(CommandSpec(
+            name="dispense.start",
+            group="dispense",
+            allowed_operation_modes=[OperationMode.auto, OperationMode.semi_auto],
+            allowed_process_modes=[ProcessMode.dispensing, ProcessMode.window_detected],
+            payload_schema={},
+            timeout_ms=2000,
+            priority=20,
+            description="Open dispense valve (manual stop required)"
+        ))
+
+        self.register(CommandSpec(
             name="dispense.stop",
             group="dispense",
             allowed_operation_modes=[],   # unrestricted — stop must always work

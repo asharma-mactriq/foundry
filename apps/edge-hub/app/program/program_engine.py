@@ -9,6 +9,9 @@ from app.services.rule_engine import get_rule_engine
 from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
 from app.orchestrators.mid_refill_orchestrator import MidRefillOrchestrator
 
+from app.program.strategies.base_strategy import DispenseContext
+from app.program.strategies.time_based import TimeBasedStrategy
+from app.program.strategies.gravimetric import GravimetricStrategy
 
 class ProgramEngine:
     """
@@ -31,7 +34,7 @@ class ProgramEngine:
         # Mid-run refill state machine
         # Mid-refill orchestrator
         self.mid_refill_orchestrator = MidRefillOrchestrator(executor)
-
+        self.strategy = None
         # self._refill_state = "IDLE"       # IDLE | FILLING | SETTLING
         # self._refill_weight_before = 0.0
         # self._refill_fill_stop_sent = False
