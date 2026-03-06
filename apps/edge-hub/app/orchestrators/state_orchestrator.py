@@ -81,7 +81,8 @@ class StateOrchestrator:
         # PASS ENTER (gap: 0 → 1)
         if ms.gap_transition == "enter":
             pid = ps.new_pass()
-            ps.last_event = "pass_enter"
+            if ps.last_event is None:
+                ps.last_event = "pass_enter"
             print(f"[STATE] Pass {pid} ENTER")
 
         # PASS STABLE
@@ -94,6 +95,8 @@ class StateOrchestrator:
                 p = ps.passes.get(pid)
                 if p and p.stable_ts == 0:
                     ps.mark_stable(pid)
+                    if ps.last_event is None:
+                        ps.last_event = "pass_stable"
                     print(f"[STATE] Pass {pid} STABLE")
 
         # JAM DETECTION
@@ -112,6 +115,8 @@ class StateOrchestrator:
             pid = ps.current_pass
             if pid > 0:
                 ps.mark_exit(pid)
+                if ps.last_event is None:
+                    ps.last_event = "pass_exit"
                 print(f"[STATE] Pass {pid} EXIT")
 
     # ──────────────────────────────────────────────────────────────
