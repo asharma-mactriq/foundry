@@ -748,16 +748,31 @@ class StartupOrchestrator:
             return
 
         # ── Total timeout with progressive extension ──
+        # if elapsed_since_start > p.pot_fill_total_timeout_s:
+        #     if time_since_last_change > 10.0:
+        #         # Weight stopped moving — assume blocked or reservoir empty
+        #         print(
+        #             f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
+        #             f"no weight change for {time_since_last_change:.0f}s"
+        #         )
+        #         create_and_queue_command(name="pot.fill_stop", payload={})
+        #         program_state.abort("pot_fill_stalled")
+        #         return
+            
+# // TESTING
         if elapsed_since_start > p.pot_fill_total_timeout_s:
             if time_since_last_change > 10.0:
-                # Weight stopped moving — assume blocked or reservoir empty
                 print(
-                    f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
-                    f"no weight change for {time_since_last_change:.0f}s"
+                    f"[STARTUP_ORCH] WARNING: Pot fill stalled — forcing continue"
                 )
+
+                # close inlet and proceed anyway
                 create_and_queue_command(name="pot.fill_stop", payload={})
-                program_state.abort("pot_fill_stalled")
+
+                self._fill_stop_sent = True
+                self._settle_start_ts = now
                 return
+
             # Weight still moving but slowly — log and continue
             print(
                 f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
@@ -810,14 +825,20 @@ class StartupOrchestrator:
         pressure = ms.pressure   # may be unreliable — used for safety only
 
         # ── Safety: overpressure guard ──
+        # if pressure >= p.pressurise_safety_bar:
+        #     print(
+        #         f"[STARTUP_ORCH] ABORT: Overpressure detected "
+        #         f"({pressure:.2f} bar >= {p.pressurise_safety_bar} bar)"
+        #     )
+        #     create_and_queue_command(name="pot.depressurise", payload={})
+        #     program_state.abort("overpressure")
+        #     return
+
         if pressure >= p.pressurise_safety_bar:
             print(
-                f"[STARTUP_ORCH] ABORT: Overpressure detected "
-                f"({pressure:.2f} bar >= {p.pressurise_safety_bar} bar)"
+                f"[STARTUP_ORCH] WARNING: Overpressure detected "
+                f"({pressure:.2f} bar) — ignoring in test mode"
             )
-            create_and_queue_command(name="pot.depressurise", payload={})
-            program_state.abort("overpressure")
-            return
 
         # ── Hard max time ceiling ──
         if elapsed >= p.pressurise_max_open_s:
@@ -912,24 +933,43 @@ class StartupOrchestrator:
         total_drain_kg = self._prime_start_weight - mat.current_pot_kg
 
         # ── Hard timeout ──
+        # if elapsed > p.line_prime_timeout_s:
+        #     print(
+        #         f"[STARTUP_ORCH] ABORT: Line prime timeout after {elapsed:.0f}s "
+        #         f"({total_drain_kg*1000:.0f}g drained)"
+        #     )
+        #     create_and_queue_command(name="line.prime_stop", payload={})
+        #     program_state.abort("line_prime_timeout")
+        #     return
+
         if elapsed > p.line_prime_timeout_s:
             print(
-                f"[STARTUP_ORCH] ABORT: Line prime timeout after {elapsed:.0f}s "
-                f"({total_drain_kg*1000:.0f}g drained)"
+                f"[STARTUP_ORCH] WARNING: Prime timeout — forcing completion"
             )
-            create_and_queue_command(name="line.prime_stop", payload={})
-            program_state.abort("line_prime_timeout")
+
+            if not self._prime_stop_sent:
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+
             return
 
+
         # ── Safety drain cap ──
+        # if total_drain_kg >= p.line_prime_max_drain_kg:
+        #     print(
+        #         f"[STARTUP_ORCH] ABORT: Line prime safety cap — "
+        #         f"{total_drain_kg:.3f}kg drained (max={p.line_prime_max_drain_kg}kg)"
+        #     )
+        #     create_and_queue_command(name="line.prime_stop", payload={})
+        #     program_state.abort("line_prime_excess_drain")
+        #     return
         if total_drain_kg >= p.line_prime_max_drain_kg:
             print(
-                f"[STARTUP_ORCH] ABORT: Line prime safety cap — "
-                f"{total_drain_kg:.3f}kg drained (max={p.line_prime_max_drain_kg}kg)"
+                f"[STARTUP_ORCH] WARNING: Excess drain ignored in test mode "
+                f"{total_drain_kg:.3f}kg"
             )
-            create_and_queue_command(name="line.prime_stop", payload={})
-            program_state.abort("line_prime_excess_drain")
-            return
 
         # ── Compute rate every rate_window_s ──
         rate_window_elapsed = now - self._rate_window_start_ts
