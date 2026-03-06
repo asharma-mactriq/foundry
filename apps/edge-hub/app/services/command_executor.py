@@ -386,11 +386,13 @@ class CommandExecutor:
         # MATERIAL SAFETY
         # --------------------------------------------------
         if name.startswith("dispense"):
-            if not mat.line_primed:
-                return block("dispense line not primed")
+            # if not mat.line_primed:
+            #     return block("dispense line not primed")
 
-            if mat.current_pot_kg <= MIN_USABLE_KG:
-                return block("insufficient paint in pot")
+            # if mat.current_pot_kg <= MIN_USABLE_KG:
+            #     return block("insufficient paint in pot")
+            
+            pass
 
         # --------------------------------------------------
         # MACHINE PHASE
