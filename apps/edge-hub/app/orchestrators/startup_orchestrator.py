@@ -927,6 +927,7 @@ class StartupOrchestrator:
             return
         
 
+        total_drain_kg = self._prime_start_weight - mat.current_pot_kg
         if total_drain_kg >= p.line_prime_max_drain_kg:
             print(
                 f"[STARTUP_ORCH] WARNING: Excess drain ignored in test mode "
@@ -964,7 +965,6 @@ class StartupOrchestrator:
                 program_state.on_line_primed()
                 material_state_manager.state.line_primed = True
             return
-        total_drain_kg = self._prime_start_weight - mat.current_pot_kg
 
         # ── Hard timeout ──
         # if elapsed > p.line_prime_timeout_s:
