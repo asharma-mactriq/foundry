@@ -46,8 +46,20 @@ class StateOrchestrator:
             return ms, ps
 
         # 6. Gap/plate detection (only meaningful in RUNNING)
+        # if ps.phase in (ProgramPhase.READY, ProgramPhase.RUNNING):
+        #     self._process_gap_events(ms, ps, now)
+
+        # return ms, ps
+
+        # 6. Gap/plate detection
         if ps.phase in (ProgramPhase.READY, ProgramPhase.RUNNING):
             self._process_gap_events(ms, ps, now)
+
+        # 7. Program Engine (dispense logic)
+        from app.program.program_engine import program_engine
+
+        if program_engine:
+            program_engine.on_event(ms, ps)
 
         return ms, ps
 
@@ -69,6 +81,7 @@ class StateOrchestrator:
         # PASS ENTER (gap: 0 → 1)
         if ms.gap_transition == "enter":
             pid = ps.new_pass()
+            ps.last_event = "pass_enter"
             print(f"[STATE] Pass {pid} ENTER")
 
         # PASS STABLE
