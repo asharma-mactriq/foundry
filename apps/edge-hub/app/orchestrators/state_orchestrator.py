@@ -73,7 +73,7 @@ class StateOrchestrator:
 
         # PASS STABLE
         if ms.gap == 1 and ms.plate_stable:
-            from app.modes.mode_types import ProcessMode
+            # from app.modes.mode_types import ProcessMode
             mode_manager.set_process(ProcessMode.window_detected)
 
             pid = ps.current_pass

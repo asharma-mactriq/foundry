@@ -320,4 +320,8 @@ class ProgramEngine:
         return self.profile.dispense_open_ms
 
 
-program_engine = None
+# program_engine = None
+
+from app.services.command_executor import command_executor
+
+program_engine = ProgramEngine(command_executor)
