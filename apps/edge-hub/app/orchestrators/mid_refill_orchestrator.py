@@ -69,6 +69,7 @@ class MidRefillOrchestrator:
         if self.state != "IDLE":
             return
 
+        mat = material_state_manager.state
         now = time.time()
 
         if now - self._last_refill_ts < profile.mid_refill_cooldown_s:
@@ -84,7 +85,6 @@ class MidRefillOrchestrator:
             )
             return
 
-        mat = material_state_manager.state
         self.profile = profile
         self.weight_before = mat.current_pot_kg
         self._last_refill_ts = now

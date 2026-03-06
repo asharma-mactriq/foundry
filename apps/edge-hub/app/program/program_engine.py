@@ -148,12 +148,14 @@ class ProgramEngine:
                 and not self.executor.is_busy()
             ):
                 self.mid_refill_orchestrator.begin(self.profile)
+                return
 
         # if ps.phase == ProgramPhase.RUNNING:
         #     self._maybe_trigger_refill()
 
         # Gap/dispense events
         event = ps.last_event
+        ps.last_event = None  # ← clear before handlers, not after
 
         if event == "pass_enter":
             self._handle_pass_enter(ps)
@@ -162,7 +164,7 @@ class ProgramEngine:
         elif event == "pass_exit":
             self._handle_pass_exit(ps)
 
-        ps.last_event = None
+        # ps.last_event = None
 
     # ──────────────────────────────────────────────────────────────
     # STARTUP: send startup.sequence firmware command once
