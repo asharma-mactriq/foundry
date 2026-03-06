@@ -748,20 +748,20 @@ class StartupOrchestrator:
             return
 
         # ── Total timeout with progressive extension ──
-        if elapsed_since_start > p.pot_fill_total_timeout_s:
-            if time_since_last_change > 10.0:
-                # Weight stopped moving — assume blocked or reservoir empty
-                print(
-                    f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
-                    f"no weight change for {time_since_last_change:.0f}s"
-                )
-                create_and_queue_command(name="pot.fill_stop", payload={})
-                program_state.abort("pot_fill_stalled")
-                return
-            # Weight still moving but slowly — log and continue
-            print(
-                f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
-                f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
+        # if elapsed_since_start > p.pot_fill_total_timeout_s:
+        #     if time_since_last_change > 10.0:
+        #         # Weight stopped moving — assume blocked or reservoir empty
+        #         print(
+        #             f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
+        #             f"no weight change for {time_since_last_change:.0f}s"
+        #         )
+        #         create_and_queue_command(name="pot.fill_stop", payload={})
+        #         program_state.abort("pot_fill_stalled")
+        #         return
+        #     # Weight still moving but slowly — log and continue
+        #     print(
+        #         f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
+        #         f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
             )
 
         # ── Target reached ──
