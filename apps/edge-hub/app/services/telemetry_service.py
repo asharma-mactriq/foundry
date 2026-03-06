@@ -58,8 +58,8 @@ class TelemetryService:
             #     if ps.last_event_ts != self.last_program_event_ts:
             #         program_engine.on_event(ms, ps)
             #         self.last_program_event_ts = ps.last_event_ts
-            if program_engine:
-                program_engine.on_event(ms, ps)
+            # if program_engine:
+            #     program_engine.on_event(ms, ps)
 
 
 

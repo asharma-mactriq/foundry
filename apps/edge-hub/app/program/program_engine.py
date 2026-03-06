@@ -104,7 +104,10 @@ class ProgramEngine:
     # ──────────────────────────────────────────────────────────────
     def on_event(self, machine, program):
         ps = program
-        print(f"[PROGRAM_ENGINE] phase={ps.phase}")
+        mat = material_state_manager.state
+        # print(f"[PROGRAM_ENGINE] phase={ps.phase}")
+        if ps.last_event:
+            print(f"[PROGRAM_ENGINE] event={ps.last_event} phase={ps.phase}")
 
         if self.executor.is_busy():
             return
@@ -139,7 +142,7 @@ class ProgramEngine:
 
         # Mid-run refill check (only in RUNNING)
         if ps.phase == ProgramPhase.RUNNING:
-            mat = material_state_manager.state
+            # mat = material_state_manager.state
             if (
                 mat.current_pot_kg < self.profile.mid_refill_threshold_kg
                 and not self.executor.is_busy()
