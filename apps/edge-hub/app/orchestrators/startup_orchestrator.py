@@ -748,21 +748,21 @@ class StartupOrchestrator:
             return
 
         # ── Total timeout with progressive extension ──
-        # if elapsed_since_start > p.pot_fill_total_timeout_s:
-        #     if time_since_last_change > 10.0:
-        #         # Weight stopped moving — assume blocked or reservoir empty
-        #         print(
-        #             f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
-        #             f"no weight change for {time_since_last_change:.0f}s"
-        #         )
-        #         create_and_queue_command(name="pot.fill_stop", payload={})
-        #         program_state.abort("pot_fill_stalled")
-        #         return
-        #     # Weight still moving but slowly — log and continue
-        #     print(
-        #         f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
-        #         f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
-        #     )
+        if elapsed_since_start > p.pot_fill_total_timeout_s:
+            if time_since_last_change > 10.0:
+                # Weight stopped moving — assume blocked or reservoir empty
+                print(
+                    f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
+                    f"no weight change for {time_since_last_change:.0f}s"
+                )
+                create_and_queue_command(name="pot.fill_stop", payload={})
+                program_state.abort("pot_fill_stalled")
+                return
+            # Weight still moving but slowly — log and continue
+            print(
+                f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
+                f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
+            )
 
         # ── Target reached ──
         if current_kg >= p.pot_fill_target_kg:
@@ -912,24 +912,24 @@ class StartupOrchestrator:
         total_drain_kg = self._prime_start_weight - mat.current_pot_kg
 
         # ── Hard timeout ──
-        # if elapsed > p.line_prime_timeout_s:
-        #     print(
-        #         f"[STARTUP_ORCH] ABORT: Line prime timeout after {elapsed:.0f}s "
-        #         f"({total_drain_kg*1000:.0f}g drained)"
-        #     )
-        #     create_and_queue_command(name="line.prime_stop", payload={})
-        #     program_state.abort("line_prime_timeout")
-        #     return
+        if elapsed > p.line_prime_timeout_s:
+            print(
+                f"[STARTUP_ORCH] ABORT: Line prime timeout after {elapsed:.0f}s "
+                f"({total_drain_kg*1000:.0f}g drained)"
+            )
+            create_and_queue_command(name="line.prime_stop", payload={})
+            program_state.abort("line_prime_timeout")
+            return
 
         # ── Safety drain cap ──
-        # if total_drain_kg >= p.line_prime_max_drain_kg:
-        #     print(
-        #         f"[STARTUP_ORCH] ABORT: Line prime safety cap — "
-        #         f"{total_drain_kg:.3f}kg drained (max={p.line_prime_max_drain_kg}kg)"
-        #     )
-        #     create_and_queue_command(name="line.prime_stop", payload={})
-        #     program_state.abort("line_prime_excess_drain")
-        #     return
+        if total_drain_kg >= p.line_prime_max_drain_kg:
+            print(
+                f"[STARTUP_ORCH] ABORT: Line prime safety cap — "
+                f"{total_drain_kg:.3f}kg drained (max={p.line_prime_max_drain_kg}kg)"
+            )
+            create_and_queue_command(name="line.prime_stop", payload={})
+            program_state.abort("line_prime_excess_drain")
+            return
 
         # ── Compute rate every rate_window_s ──
         rate_window_elapsed = now - self._rate_window_start_ts
