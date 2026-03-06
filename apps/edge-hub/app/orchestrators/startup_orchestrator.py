@@ -1016,22 +1016,39 @@ class StartupOrchestrator:
         #     return  # wait for crack before confirming
 
         # ── Detect crack immediately (do NOT wait for min time) ──
-        if not self._nozzle_cracked:
-            if current_rate >= p.line_prime_nozzle_crack_rate_kg_s:
-                self._nozzle_cracked = True
-                self._nozzle_crack_ts = now
-                print(
-                    f"[STARTUP_ORCH] Nozzle crack detected — "
-                    f"rate={current_rate*1000:.1f}g/s at t={elapsed:.0f}s"
-                )
+        # if not self._nozzle_cracked:
+        #     if current_rate >= p.line_prime_nozzle_crack_rate_kg_s:
+        #         self._nozzle_cracked = True
+        #         self._nozzle_crack_ts = now
+        #         print(
+        #             f"[STARTUP_ORCH] Nozzle crack detected — "
+        #             f"rate={current_rate*1000:.1f}g/s at t={elapsed:.0f}s"
+        #         )
+
+        # ── Fixed duration priming ──
+
+        if elapsed >= p.line_prime_min_time_s:
+
+            print(
+                f"[STARTUP_ORCH] Prime duration complete "
+                f"({elapsed:.1f}s) — closing valve"
+            )
+
+            if not self._prime_stop_sent:
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+
+            return
 
         # # If crack not yet detected → cannot finish
         # if not self._nozzle_cracked:
         #     return
 
         # Only allow completion AFTER minimum prime time
-        if elapsed < p.line_prime_min_time_s:
-            return
+        # if elapsed < p.line_prime_min_time_s:
+        #     return
 
 
         # ─────────────────────────────────────────
@@ -1057,21 +1074,21 @@ class StartupOrchestrator:
         #   2) Minimum prime time satisfied
         # ─────────────────────────────────────────
 
-        if self._nozzle_cracked and elapsed >= p.line_prime_min_time_s:
+        # if self._nozzle_cracked and elapsed >= p.line_prime_min_time_s:
 
-            print(
-                f"[STARTUP_ORCH] Line PRIMED — "
-                f"crack_detected elapsed={elapsed:.1f}s "
-                f"total_drain={total_drain_kg*1000:.0f}g"
-            )
+        #     print(
+        #         f"[STARTUP_ORCH] Line PRIMED — "
+        #         f"crack_detected elapsed={elapsed:.1f}s "
+        #         f"total_drain={total_drain_kg*1000:.0f}g"
+        #     )
 
-            if not self._prime_stop_sent:
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
-                program_state.on_line_primed()
-                material_state_manager.state.line_primed = True
+        #     if not self._prime_stop_sent:
+        #         create_and_queue_command(name="line.prime_stop", payload={})
+        #         self._prime_stop_sent = True
+        #         program_state.on_line_primed()
+        #         material_state_manager.state.line_primed = True
 
-            return
+        #     return
 
 
         # ── Confirm stable flow after crack ──

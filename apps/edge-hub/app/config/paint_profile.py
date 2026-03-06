@@ -162,7 +162,7 @@ DEFAULT_PROFILE = PaintProfile(
     line_prime_mode="open_pipe",
     line_prime_line_volume_kg=0.25,
     line_prime_min_time_s=5.0,       # give pressure time to stabilise
-    line_prime_timeout_s=60.0,       # abort if 0.25kg not drained in 60s
+    line_prime_timeout_s=7.0,       # abort if 0.25kg not drained in 60s
     line_prime_max_drain_kg=2.5,     # safety cap: never drain more than 500g
 )
 
