@@ -398,6 +398,8 @@ class CommandExecutor:
         # MACHINE PHASE
         # --------------------------------------------------
         if name.startswith("dispense"):
+            if name == "dispense.stop":
+                pass  # always allow stop — safety command, no phase restriction
             if ms.phase != MachinePhase.REST_DISPENSE_EDGE:
                 return block(f"invalid phase {ms.phase}")
 
