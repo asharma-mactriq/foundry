@@ -762,7 +762,7 @@ class StartupOrchestrator:
         #     print(
         #         f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
         #         f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
-            )
+        #     )
 
         # ── Target reached ──
         if current_kg >= p.pot_fill_target_kg:
