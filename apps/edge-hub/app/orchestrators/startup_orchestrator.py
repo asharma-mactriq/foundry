@@ -596,11 +596,7 @@ class StartupOrchestrator:
         self._reset_state()
         print("[STARTUP_ORCH] Reset")
 
-    def _emit_event(self, event_name: str):
-        payload = {
-            "event": event_name
-        }
-        self.client.publish("devices/edge1/events", json.dumps(payload))
+
 
     def begin(self, profile: PaintProfile = None):
         """
@@ -657,8 +653,8 @@ class StartupOrchestrator:
         program_state.begin_pot_filling()
         print(
             f"[STARTUP_ORCH] begin() — profile={self.profile.name} "
-            f"pot_now={mat.current_pot_kg:.3f}kg "
-            f"target={self.profile.pot_fill_target_kg}kg"
+            f"pot_now={current_kg:.3f}kg "
+            f"target={target_kg}kg"
         )
 
     # ──────────────────────────────────────────────────────────────
@@ -687,7 +683,7 @@ class StartupOrchestrator:
         p = self.profile
         now = time.time()
 
-        current_kg = mat.current_pot_kg
+        current_kg = mat.current_pot_kg or 0.0
 
         print("DEBUG POT_FILLING tick", mat.current_pot_kg)
 
@@ -867,9 +863,11 @@ class StartupOrchestrator:
         self._peak_drop_rate = 0.0
         self._nozzle_cracked = False
         self._nozzle_crack_ts = 0.0
+        start_kg = mat.current_pot_kg or 0.0
+
         print(
             f"[STARTUP_ORCH] Pressurisation complete — "
-            f"starting line prime from {mat.current_pot_kg:.3f}kg"
+            f"starting line prime from {start_kg:.3f}kg"
         )
 
     # ──────────────────────────────────────────────────────────────
@@ -915,6 +913,42 @@ class StartupOrchestrator:
 
         elapsed = now - self._prime_start_ts
 
+        if elapsed > p.line_prime_timeout_s:
+            print(
+                f"[STARTUP_ORCH] WARNING: Prime timeout — forcing completion"
+            )
+
+            if not self._prime_stop_sent:
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+
+            return
+        
+
+        if total_drain_kg >= p.line_prime_max_drain_kg:
+            print(
+                f"[STARTUP_ORCH] WARNING: Excess drain ignored in test mode "
+                f"{total_drain_kg:.3f}kg"
+            )
+
+       # ── Fixed duration priming ──
+        if elapsed >= p.line_prime_min_time_s:
+
+            print(
+                f"[STARTUP_ORCH] Prime duration complete "
+                f"({elapsed:.1f}s) — closing valve"
+            )
+
+            if not self._prime_stop_sent:
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+
+            return
+
         # ─────────────────────────────────────────
         # Fallback: weight invalid → time-based prime
         # ─────────────────────────────────────────
@@ -942,18 +976,6 @@ class StartupOrchestrator:
         #     program_state.abort("line_prime_timeout")
         #     return
 
-        if elapsed > p.line_prime_timeout_s:
-            print(
-                f"[STARTUP_ORCH] WARNING: Prime timeout — forcing completion"
-            )
-
-            if not self._prime_stop_sent:
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
-                program_state.on_line_primed()
-                material_state_manager.state.line_primed = True
-
-            return
 
 
         # ── Safety drain cap ──
@@ -965,11 +987,6 @@ class StartupOrchestrator:
         #     create_and_queue_command(name="line.prime_stop", payload={})
         #     program_state.abort("line_prime_excess_drain")
         #     return
-        if total_drain_kg >= p.line_prime_max_drain_kg:
-            print(
-                f"[STARTUP_ORCH] WARNING: Excess drain ignored in test mode "
-                f"{total_drain_kg:.3f}kg"
-            )
 
         # ── Compute rate every rate_window_s ──
         rate_window_elapsed = now - self._rate_window_start_ts
@@ -1025,22 +1042,7 @@ class StartupOrchestrator:
         #             f"rate={current_rate*1000:.1f}g/s at t={elapsed:.0f}s"
         #         )
 
-        # ── Fixed duration priming ──
-
-        if elapsed >= p.line_prime_min_time_s:
-
-            print(
-                f"[STARTUP_ORCH] Prime duration complete "
-                f"({elapsed:.1f}s) — closing valve"
-            )
-
-            if not self._prime_stop_sent:
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
-                program_state.on_line_primed()
-                material_state_manager.state.line_primed = True
-
-            return
+ 
 
         # # If crack not yet detected → cannot finish
         # if not self._nozzle_cracked:
