@@ -19,6 +19,7 @@ DEVICE_MAP = {
         "pot_air_out": 4,
         "res_air_in": 5,
         "res_air_out": 6,
+        "nozzle": 7
     }
 }
 
@@ -185,6 +186,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     elif cmd_name == "dispense.start":
         steps += [
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "EMIT_EVENT", "eventName": "dispense_started"},
         ]
@@ -192,6 +194,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     elif cmd_name == "dispense.stop":
         steps += [
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
             {"type": "EMIT_EVENT", "eventName": "dispense_stopped"},
         ]
 
@@ -233,6 +236,20 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "CLOSE_ALL_VALVES"},
             {"type": "EMIT_EVENT", "eventName": "emergency_stop"},
         ]
+
+
+    elif cmd_name == "nozzle.open":
+        steps += [
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
+            {"type": "EMIT_EVENT", "eventName": "nozzle_opened"},
+        ]
+
+    elif cmd_name == "nozzle.close":
+        steps += [
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
+            {"type": "EMIT_EVENT", "eventName": "nozzle_closed"},
+        ]
+
 
     elif cmd_name == "demo.run":
         return _build_demo_workflow(payload, cmd_id)

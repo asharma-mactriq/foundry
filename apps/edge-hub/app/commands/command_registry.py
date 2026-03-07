@@ -240,9 +240,36 @@ class CommandRegistry:
             description="Close dispense valve after line primed"
         ))
 
+
+
         # ── DISPENSE ──────────────────────────────────────────────
         # Open solenoid for exactly open_ms milliseconds.
         # Firmware handles the timing precisely.
+
+
+        self.register(CommandSpec(
+            name="nozzle.open",
+            group="nozzle",
+            allowed_operation_modes=[],
+            allowed_process_modes=[],
+            payload_schema={},
+            timeout_ms=1000,
+            priority=30,
+            description="Open nozzle valve"
+        ))
+
+        self.register(CommandSpec(
+            name="nozzle.close",
+            group="nozzle",
+            allowed_operation_modes=[],
+            allowed_process_modes=[],
+            payload_schema={},
+            timeout_ms=1000,
+            priority=30,
+            description="Close nozzle valve"
+        ))
+
+
         self.register(CommandSpec(
             name="dispense.open",
             group="dispense",
