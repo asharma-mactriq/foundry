@@ -524,9 +524,10 @@ class StartupOrchestrator:
         now = time.time()
         program_state.on_pressurised()  # → LINE_PRIMING
         self._prime_start_ts = now
-        self._prime_start_weight = mat.current_pot_kg
-        self._rate_window_start_ts = now
-        self._rate_window_start_weight = mat.current_pot_kg
+        current_kg = mat.current_pot_kg or 0.0
+        self._prime_start_weight = current_kg
+        self._rate_window_start_weight = current_kg
+        self._rate_window_start_weight = current_kg
         self._peak_drop_rate = 0.0
         self._nozzle_cracked = False
         self._nozzle_crack_ts = 0.0
@@ -573,7 +574,7 @@ class StartupOrchestrator:
             )
             self._prime_cmd_sent = True
             self._prime_start_ts = now
-            self._prime_start_weight = mat.current_pot_kg
+            self._prime_start_weight = mat.current_pot_kg or 0.0
             self._rate_window_start_ts = now
             self._rate_window_start_weight = mat.current_pot_kg
             return
@@ -594,7 +595,13 @@ class StartupOrchestrator:
             return
         
 
-        total_drain_kg = self._prime_start_weight - mat.current_pot_kg
+        # total_drain_kg = self._prime_start_weight - mat.current_pot_kg
+
+        current_kg = mat.current_pot_kg or 0.0
+        start_kg = self._prime_start_weight or current_kg
+
+        total_drain_kg = start_kg - current_kg
+
         if total_drain_kg >= p.line_prime_max_drain_kg:
             print(
                 f"[STARTUP_ORCH] WARNING: Excess drain ignored in test mode "
