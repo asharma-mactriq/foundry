@@ -96,12 +96,13 @@ class StateOrchestrator:
         # PASS ENTER (gap: 0 → 1)
         if ms.gap_transition == "enter":
             pid = ps.new_pass()
-            if ps.last_event is None:
-                ps.last_event = "pass_enter"
+            # if ps.last_event is None:
+            #     ps.last_event = "pass_enter"
             print(f"[STATE] Pass {pid} ENTER")
 
         # PASS STABLE
-        if ms.gap == 1 and ms.plate_stable:
+        # if ms.gap == 1 and ms.plate_stable:
+        if ms.last_event == "plate_stable":
             # from app.modes.mode_types import ProcessMode
             mode_manager.set_process(ProcessMode.window_detected)
 
@@ -110,8 +111,8 @@ class StateOrchestrator:
                 p = ps.passes.get(pid)
                 if p and p.stable_ts == 0:
                     ps.mark_stable(pid)
-                    if ps.last_event is None:
-                        ps.last_event = "pass_stable"
+                    # if ps.last_event is None:
+                    #     ps.last_event = "pass_stable"
                     print(f"[STATE] Pass {pid} STABLE")
 
         # JAM DETECTION
@@ -130,9 +131,11 @@ class StateOrchestrator:
             pid = ps.current_pass
             if pid > 0:
                 ps.mark_exit(pid)
-                if ps.last_event is None:
-                    ps.last_event = "pass_exit"
+                # if ps.last_event is None:
+                #     ps.last_event = "pass_exit"
                 print(f"[STATE] Pass {pid} EXIT")
+
+        ms.last_event = None
 
     # ──────────────────────────────────────────────────────────────
     def _evaluate_rules(self, raw, ms, ps, mat):
