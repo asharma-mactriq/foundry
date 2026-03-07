@@ -109,12 +109,12 @@ class PaintProfile:
     # Accounts for: pressure wave travel, nozzle spring overcome, viscosity
     # Thick paste: 300-800ms — measure empirically
     # Watch pot weight: starts dropping = nozzles cracked open
-    nozzle_open_lag_ms: int = 300
+    nozzle_open_lag_ms: int = 50
 
     # Lag from solenoid close to paint stopping at nozzle (ms)
     # Residual pressure in 5ft line keeps pushing briefly
     # Thick paste: 100-400ms
-    nozzle_close_lag_ms: int = 200
+    nozzle_close_lag_ms: int = 50
 
     # Effective dispense time = open_ms - open_lag - close_lag
     # If this goes negative your open_ms is too short for this paint
