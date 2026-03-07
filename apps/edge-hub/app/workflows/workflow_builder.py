@@ -254,9 +254,24 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     elif cmd_name == "demo.run":
         return _build_demo_workflow(payload, cmd_id)
     
+    # elif cmd_name == "line.prime_start":
+    #     steps += [
+    #         {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+    #         {"type": "EMIT_EVENT", "eventName": "line_prime_started"},
+    #     ]
+
     elif cmd_name == "line.prime_start":
         steps += [
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+            # open nozzle for purge
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
+
+            {"type": "WAIT_MS", "durationMs": 2000},
+
+            # close nozzle but keep dispense open
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
+
             {"type": "EMIT_EVENT", "eventName": "line_prime_started"},
         ]
 

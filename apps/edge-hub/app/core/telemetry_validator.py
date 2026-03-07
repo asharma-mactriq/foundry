@@ -124,6 +124,7 @@ class TelemetryValidator:
             "pot_air_out": 1 if raw_valves.get("pot_air_out") else 0,
             "res_air_in": 1 if raw_valves.get("res_air_in") else 0,
             "res_air_out": 1 if raw_valves.get("res_air_out") else 0,
+            "nozzle": 1 if raw_valves.get("nozzle") else 0,
         }
 
         # ─────────────────────────────────────

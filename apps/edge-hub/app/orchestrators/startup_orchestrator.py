@@ -20,7 +20,10 @@ class StartupOrchestrator:
 
     def __init__(self):
         self.profile: PaintProfile = DEFAULT_PROFILE
+        # self.TEST_MODE = False   # ← Actual 
+        self.TEST_MODE = True   # ← Test 
         self._reset_state()
+
 
     def _reset_state(self):
         # Fill phase
@@ -110,6 +113,11 @@ class StartupOrchestrator:
         self._fill_stop_sent = False
 
         program_state.begin_pot_filling()
+
+        if self.TEST_MODE:
+            print("[STARTUP_ORCH] TEST MODE ENABLED — bypassing sensors")
+            self._fill_state = "DEPRESSURISE_POT"
+            
         print(
             f"[STARTUP_ORCH] begin() — profile={self.profile.name} "
             f"pot_now={current_kg:.3f}kg "
@@ -330,6 +338,13 @@ class StartupOrchestrator:
                 f"(+{gained:.3f}kg)"
             )
 
+            # TEST MODE: ignore weight
+            if self.TEST_MODE:
+                if elapsed > 3:
+                    print("[STARTUP_ORCH] TEST MODE forcing fill completion")
+                    self._fill_state = "CLOSE_INLET"
+                return
+
             if current_kg >= p.pot_fill_target_kg:
                 print("[STARTUP_ORCH] Target reached")
                 self._fill_state = "CLOSE_INLET"
@@ -456,6 +471,12 @@ class StartupOrchestrator:
             self._complete_pressurisation()
             return
 
+        if self.TEST_MODE:
+            if elapsed > 2:
+                print("[STARTUP_ORCH] TEST MODE forcing pressurise complete")
+                self._complete_pressurisation()
+            return
+
         # ── Primary: nominal open time elapsed ──
         if elapsed >= p.pressurise_open_s:
             print(
@@ -545,6 +566,15 @@ class StartupOrchestrator:
                 f"[STARTUP_ORCH] WARNING: Excess drain ignored in test mode "
                 f"{total_drain_kg:.3f}kg"
             )
+        
+        if self.TEST_MODE:
+            if elapsed > 3:
+                print("[STARTUP_ORCH] TEST MODE forcing line primed")
+                create_and_queue_command(name="line.prime_stop", payload={})
+                self._prime_stop_sent = True
+                program_state.on_line_primed()
+                material_state_manager.state.line_primed = True
+            return
 
        # ── Fixed duration priming ──
         if elapsed >= p.line_prime_min_time_s:
