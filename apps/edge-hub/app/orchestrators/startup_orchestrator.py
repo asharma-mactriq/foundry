@@ -21,9 +21,9 @@ class StartupOrchestrator:
 
     def __init__(self):
         self.profile: PaintProfile = DEFAULT_PROFILE
-        # self.TEST_MODE = False   # ← Actual 
+        self.TEST_MODE = False   # ← Actual 
         self.executor = None
-        self.TEST_MODE = True   # ← Test 
+        # self.TEST_MODE = True   # ← Test 
         self._reset_state()
 
 
