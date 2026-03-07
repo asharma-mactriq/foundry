@@ -142,14 +142,14 @@ class ProgramEngine:
             return
 
         # Mid-run refill check (only in RUNNING)
-        # if ps.phase == ProgramPhase.RUNNING:
-        #     # mat = material_state_manager.state
-        #     if (
-        #         mat.current_pot_kg < self.profile.mid_refill_threshold_kg
-        #         and not self.executor.is_busy()
-        #     ):
-        #         self.mid_refill_orchestrator.begin(self.profile)
-        #         return
+        if ps.phase == ProgramPhase.RUNNING:
+            # mat = material_state_manager.state
+            if (
+                mat.current_pot_kg < self.profile.mid_refill_threshold_kg
+                and not self.executor.is_busy()
+            ):
+                self.mid_refill_orchestrator.begin(self.profile)
+                return
 
         # if ps.phase == ProgramPhase.RUNNING:
         #     self._maybe_trigger_refill()
