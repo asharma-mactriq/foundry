@@ -6,7 +6,7 @@ from app.state.program_state import program_state, ProgramPhase
 from app.state.material_state import material_state_manager
 from app.state.machine_state import machine_state_manager
 from app.config.paint_profile import PaintProfile, DEFAULT_PROFILE
-# from app.services.command_executor import executor
+from app.services.command_executor import executor
 
 
 class StartupOrchestrator:
@@ -35,6 +35,7 @@ class StartupOrchestrator:
         self._fill_last_weight_ts = 0.0
         self._settle_start_ts = 0.0
         self._fill_state = "IDLE"
+        self._active_cmd = None
 
         # Pressurise phase
         self._pressurise_cmd_sent = False
@@ -272,84 +273,78 @@ class StartupOrchestrator:
         # 1️⃣ Depressurise pot
         if self._fill_state == "DEPRESSURISE_POT":
 
-            if not self._fill_cmd_sent:
+            if not self._active_cmd:
 
                 print("[STARTUP_ORCH] Venting pot")
 
-                create_and_queue_command(
+                self._active_cmd = create_and_queue_command(
                     name="pot.depressurise",
                     payload={}
                 )
-
-                self._fill_cmd_sent = True
-                self._fill_phase_start_ts = now
                 return
 
-            # wait some time before next state
-            if now - self._fill_phase_start_ts > 2:
-                self._fill_cmd_sent = False
+            if executor.is_completed(self._active_cmd):
+
+                self._active_cmd = None
                 self._fill_state = "PRESSURISE_RES"
 
         # 2️⃣ Pressurise reservoir
         if self._fill_state == "PRESSURISE_RES":
 
-            if not self._fill_cmd_sent:
+            if not self._active_cmd:
 
                 print("[STARTUP_ORCH] Pressurising reservoir")
 
-                create_and_queue_command(
+                self._active_cmd = create_and_queue_command(
                     name="res.pressurise",
                     payload={"open_ms": int(p.pressurise_open_s * 1000)}
                 )
-
-                self._fill_cmd_sent = True
-                self._fill_phase_start_ts = now
                 return
 
-            if now - self._fill_phase_start_ts > p.pressurise_open_s:
-                self._fill_cmd_sent = False
+            if executor.is_completed(self._active_cmd):
+
+                self._active_cmd = None
                 self._fill_state = "OPEN_INLET"
 
 
         # 3️⃣ Open inlet
         if self._fill_state == "OPEN_INLET":
 
-            if not self._fill_cmd_sent:
+            if not self._active_cmd:
 
                 print("[STARTUP_ORCH] Opening inlet")
 
-                create_and_queue_command(
+                self._active_cmd = create_and_queue_command(
                     name="pot.fill_start",
                     payload={"target_kg": p.pot_fill_target_kg}
                 )
-
-                self._fill_cmd_sent = True
                 return
 
-            # once sent, immediately proceed
-            self._fill_cmd_sent = False
-            self._fill_state = "OPEN_VENT"
+            if executor.is_completed(self._active_cmd):
+
+                self._active_cmd = None
+                self._fill_state = "OPEN_VENT"
 
 
         # 4️⃣ Open vent
         if self._fill_state == "OPEN_VENT":
 
-            if not self._fill_cmd_sent:
+            if not self._active_cmd:
 
                 print("[STARTUP_ORCH] Opening pot vent")
 
-                create_and_queue_command(
+                self._active_cmd = create_and_queue_command(
                     name="pot.vent_open",
                     payload={}
                 )
-
-                self._fill_cmd_sent = True
-                self._fill_phase_start_ts = now
-                self._fill_phase_start_weight = current_kg
                 return
 
-            self._fill_cmd_sent = False
-            self._fill_state = "FILLING"
+            if executor.is_completed(self._active_cmd):
+
+                self._active_cmd = None
+                self._fill_phase_start_ts = now
+                self._fill_phase_start_weight = current_kg
+                self._fill_state = "FILLING"
 
         # 5️⃣ Filling
         if self._fill_state == "FILLING":
@@ -385,40 +380,39 @@ class StartupOrchestrator:
         # 6️⃣ Close inlet
         if self._fill_state == "CLOSE_INLET":
 
-            if not self._fill_cmd_sent:
+            if not self._active_cmd:
 
                 print("[STARTUP_ORCH] Closing inlet")
 
-                create_and_queue_command(
+                self._active_cmd = create_and_queue_command(
                     name="pot.fill_stop",
                     payload={}
                 )
-
-                self._fill_cmd_sent = True
                 return
 
-            self._fill_cmd_sent = False
-            self._fill_state = "CLOSE_VENT"
+            if executor.is_completed(self._active_cmd):
 
+                self._active_cmd = None
+                self._fill_state = "CLOSE_VENT"
 
         # 7️⃣ Close vent
         if self._fill_state == "CLOSE_VENT":
 
-            if not self._fill_cmd_sent:
+            if not self._active_cmd:
 
                 print("[STARTUP_ORCH] Closing pot vent")
 
-                create_and_queue_command(
+                self._active_cmd = create_and_queue_command(
                     name="pot.vent_close",
                     payload={}
                 )
-
-                self._fill_cmd_sent = True
-                self._settle_start_ts = now
                 return
 
-            self._fill_cmd_sent = False
-            self._fill_state = "SETTLING"
+            if executor.is_completed(self._active_cmd):
+
+                self._active_cmd = None
+                self._settle_start_ts = now
+                self._fill_state = "SETTLING"
 
 
         # 8️⃣ Settling
@@ -436,14 +430,18 @@ class StartupOrchestrator:
         # 9️⃣ Depressurise reservoir
         if self._fill_state == "DEPRESSURISE_RES":
 
-            create_and_queue_command(
-                name="res.depressurise",
-                payload={}
-            )
+            if not self._active_cmd:
 
-            self._fill_state = "COMPLETE"
-            return
+                self._active_cmd = create_and_queue_command(
+                    name="res.depressurise",
+                    payload={}
+                )
+                return
 
+            if executor.is_completed(self._active_cmd):
+
+                self._active_cmd = None
+                self._fill_state = "COMPLETE"
 
         # 🔟 Complete
         if self._fill_state == "COMPLETE":

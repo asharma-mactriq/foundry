@@ -46,6 +46,18 @@ class CommandExecutor:
     def is_busy(self) -> bool:
         return self.current_cmd is not None
 
+    def is_completed(self, cmd_id: str) -> bool:
+        """
+        Allows orchestrators to check if a command finished.
+        Reads from command_store so it works across threads.
+        """
+        cmd = command_store.get(cmd_id)
+        if not cmd:
+            return False
+
+        return cmd.get("status") == "completed"
+
+
     def loop(self):
         while self.running:
             time.sleep(self.tick)
