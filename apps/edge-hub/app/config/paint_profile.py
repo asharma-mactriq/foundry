@@ -31,7 +31,7 @@ class PaintProfile:
     pot_fill_flow_start_timeout_s: float = 8.0   # abort if no gain after this
 
     # Total fill timeout (weight moving but slowly)
-    pot_fill_total_timeout_s: float = 90.0
+    pot_fill_total_timeout_s: float = 10.0
 
     # Minimum weight gain to confirm flow has started
     pot_fill_min_gain_kg: float = 0.05
@@ -179,7 +179,7 @@ THICK_PASTE_PROFILE = PaintProfile(
     pot_fill_target_kg=3.0,
     pot_fill_flow_start_timeout_s=12.0,
     pressurise_open_s=15.0,
-    pot_fill_total_timeout_s=120.0,
+    pot_fill_total_timeout_s=20.0,
     dispense_open_ms=600,
     nozzle_open_lag_ms=500,
     nozzle_close_lag_ms=300,
@@ -208,7 +208,7 @@ THIN_PROFILE = PaintProfile(
     description="Low viscosity — fast fill, short prime, small lags",
     pot_fill_target_kg=4.0,
     pot_fill_flow_start_timeout_s=5.0,
-    pot_fill_total_timeout_s=60.0,
+    pot_fill_total_timeout_s=10.0,
     pressurise_open_s=10.0,
     line_prime_min_time_s=15.0,
     line_prime_timeout_s=90.0,

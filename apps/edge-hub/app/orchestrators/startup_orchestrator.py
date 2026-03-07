@@ -31,6 +31,7 @@ class StartupOrchestrator:
         self._fill_last_weight = 0.0
         self._fill_last_weight_ts = 0.0
         self._settle_start_ts = 0.0
+        self._fill_state = "IDLE"
 
         # Pressurise phase
         self._pressurise_cmd_sent = False
@@ -89,6 +90,7 @@ class StartupOrchestrator:
             create_and_queue_command(name="pot.fill_stop", payload={})
             # create_and_queue_command(name="pot.fill_stop", payload={})
             program_state.begin_pot_filling()   # enter POT_FILLING first
+            self._fill_state = "DEPRESSURISE_POT"
             program_state.on_pot_filled()   # → PRESSURISING
             return
 
@@ -133,122 +135,275 @@ class StartupOrchestrator:
     # PHASE 1: POT FILLING
     # Primary signal: pot_weight rising
     # ──────────────────────────────────────────────────────────────
+#     def _handle_pot_filling(self, mat):
+#         weight_valid = mat.current_pot_kg is not None and mat.current_pot_kg > 0
+
+#         from app.commands.helpers import create_and_queue_command
+#         p = self.profile
+#         now = time.time()
+
+#         current_kg = mat.current_pot_kg or 0.0
+
+#         print("DEBUG POT_FILLING tick", mat.current_pot_kg)
+
+#         if not self._fill_cmd_sent:
+#             print(f"[STARTUP_ORCH] Opening paint_inlet — target={p.pot_fill_target_kg}kg")
+#             create_and_queue_command(
+#                 name="pot.fill_start",
+#                 payload={"target_kg": p.pot_fill_target_kg}
+#             )
+#             self._fill_cmd_sent = True
+#             self._fill_phase_start_ts = now
+#             self._fill_phase_start_weight = current_kg
+#             self._fill_last_weight = current_kg
+#             self._fill_last_weight_ts = now
+#             return
+
+#         # ── Step 2: Already sent fill_stop — wait for weight to settle ──
+#         if self._fill_stop_sent:
+#             settle_elapsed = now - self._settle_start_ts
+#             if settle_elapsed >= p.pot_fill_settle_s:
+#                 print(
+#                     f"[STARTUP_ORCH] Pot fill settle done ({settle_elapsed:.1f}s) "
+#                     f"final={current_kg:.3f}kg → pressurising"
+#                 )
+#                 program_state.on_pot_filled()  # → PRESSURISING
+#                 self._pressurise_start_ts = now
+#             return
+
+#         # ── Track weight change over time ──
+#         weight_gained_total = current_kg - self._fill_phase_start_weight
+#         elapsed_total = now - self._fill_phase_start_ts
+
+#         # Update last-seen weight tracker
+#         if current_kg != self._fill_last_weight:
+#             self._fill_last_weight = current_kg
+#             self._fill_last_weight_ts = now
+
+#         time_since_last_change = now - self._fill_last_weight_ts
+
+#         # ── Early flow-start check: if weight hasn't moved at all ──
+#         elapsed_since_start = now - self._fill_phase_start_ts
+#         # if elapsed_since_start > p.pot_fill_flow_start_timeout_s:
+#         #     if weight_gained_total < p.pot_fill_min_gain_kg:
+#         #         print(
+#         #             f"[STARTUP_ORCH] ABORT: Pot fill — no flow detected after "
+#         #             f"{elapsed_since_start:.0f}s (gained {weight_gained_total:.3f}kg)"
+#         #         )
+#         #         create_and_queue_command(name="pot.fill_stop", payload={})
+#         #         program_state.abort("pot_fill_no_flow")
+#         #         return
+
+#         if not weight_valid:
+#             if not self._fill_stop_sent and elapsed_since_start >= p.pot_fill_open_time_s:
+#                 print("[STARTUP_ORCH] Weight invalid — closing inlet (time-based)")
+#                 create_and_queue_command(name="pot.fill_stop", payload={})
+#                 self._fill_stop_sent = True
+#                 self._settle_start_ts = now
+#             return
+
+#         # ── Total timeout with progressive extension ──
+#         # if elapsed_since_start > p.pot_fill_total_timeout_s:
+#         #     if time_since_last_change > 10.0:
+#         #         # Weight stopped moving — assume blocked or reservoir empty
+#         #         print(
+#         #             f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
+#         #             f"no weight change for {time_since_last_change:.0f}s"
+#         #         )
+#         #         create_and_queue_command(name="pot.fill_stop", payload={})
+#         #         program_state.abort("pot_fill_stalled")
+#         #         return
+            
+# # // TESTING
+#         if elapsed_since_start > p.pot_fill_total_timeout_s:
+#             if time_since_last_change > 10.0:
+#                 print(
+#                     f"[STARTUP_ORCH] WARNING: Pot fill stalled — forcing continue"
+#                 )
+
+#                 # close inlet and proceed anyway
+#                 create_and_queue_command(name="pot.fill_stop", payload={})
+
+#                 self._fill_stop_sent = True
+#                 self._settle_start_ts = now
+#                 return
+
+#             # Weight still moving but slowly — log and continue
+#             print(
+#                 f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
+#                 f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
+#             )
+
+#         # ── Target reached ──
+#         if current_kg >= p.pot_fill_target_kg:
+#             print(
+#                 f"[STARTUP_ORCH] Pot filled ({current_kg:.3f}kg) — "
+#                 f"closing inlet, settling {p.pot_fill_settle_s}s"
+#             )
+#             create_and_queue_command(name="pot.fill_stop", payload={})
+#             self._fill_stop_sent = True
+#             self._settle_start_ts = now
+#             return
+
+#         # ── Progress log every 5s ──
+#         if int(elapsed_since_start) % 5 == 0 and int(elapsed_since_start) > 0:
+#             print(
+#                 f"[STARTUP_ORCH] Filling: {current_kg:.3f}kg / {p.pot_fill_target_kg}kg "
+#                 f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
+#             )
+
     def _handle_pot_filling(self, mat):
-        weight_valid = mat.current_pot_kg is not None and mat.current_pot_kg > 0
 
         from app.commands.helpers import create_and_queue_command
+
         p = self.profile
         now = time.time()
-
         current_kg = mat.current_pot_kg or 0.0
 
-        print("DEBUG POT_FILLING tick", mat.current_pot_kg)
+        # 1️⃣ Depressurise pot
+        if self._fill_state == "DEPRESSURISE_POT":
 
-        if not self._fill_cmd_sent:
-            print(f"[STARTUP_ORCH] Opening paint_inlet — target={p.pot_fill_target_kg}kg")
+            print("[STARTUP_ORCH] Venting pot")
+
+            create_and_queue_command(
+                name="pot.depressurise",
+                payload={}
+            )
+
+            self._fill_state = "PRESSURISE_RES"
+            return
+
+
+        # 2️⃣ Pressurise reservoir
+        if self._fill_state == "PRESSURISE_RES":
+
+            print("[STARTUP_ORCH] Pressurising reservoir")
+
+            create_and_queue_command(
+                name="res.pressurise",
+                payload={"open_ms": int(p.pressurise_open_s * 5000)}
+            )
+
+            self._fill_state = "OPEN_INLET"
+            return
+
+
+        # 3️⃣ Open inlet
+        if self._fill_state == "OPEN_INLET":
+
+            print("[STARTUP_ORCH] Opening inlet")
+
             create_and_queue_command(
                 name="pot.fill_start",
                 payload={"target_kg": p.pot_fill_target_kg}
             )
-            self._fill_cmd_sent = True
+
+            self._fill_state = "OPEN_VENT"
+            return
+
+
+        # 4️⃣ Open vent
+        if self._fill_state == "OPEN_VENT":
+
+            print("[STARTUP_ORCH] Opening pot vent")
+
+            create_and_queue_command(
+                name="pot.vent_open",
+                payload={}
+            )
+
             self._fill_phase_start_ts = now
             self._fill_phase_start_weight = current_kg
-            self._fill_last_weight = current_kg
-            self._fill_last_weight_ts = now
+
+            self._fill_state = "FILLING"
             return
 
-        # ── Step 2: Already sent fill_stop — wait for weight to settle ──
-        if self._fill_stop_sent:
-            settle_elapsed = now - self._settle_start_ts
-            if settle_elapsed >= p.pot_fill_settle_s:
-                print(
-                    f"[STARTUP_ORCH] Pot fill settle done ({settle_elapsed:.1f}s) "
-                    f"final={current_kg:.3f}kg → pressurising"
-                )
-                program_state.on_pot_filled()  # → PRESSURISING
-                self._pressurise_start_ts = now
-            return
 
-        # ── Track weight change over time ──
-        weight_gained_total = current_kg - self._fill_phase_start_weight
-        elapsed_total = now - self._fill_phase_start_ts
+        # 5️⃣ Filling
+        if self._fill_state == "FILLING":
 
-        # Update last-seen weight tracker
-        if current_kg != self._fill_last_weight:
-            self._fill_last_weight = current_kg
-            self._fill_last_weight_ts = now
+            gained = current_kg - self._fill_phase_start_weight
+            elapsed = now - self._fill_phase_start_ts
 
-        time_since_last_change = now - self._fill_last_weight_ts
+            print(
+                f"[STARTUP_ORCH] Filling pot {current_kg:.3f}kg "
+                f"(+{gained:.3f}kg)"
+            )
 
-        # ── Early flow-start check: if weight hasn't moved at all ──
-        elapsed_since_start = now - self._fill_phase_start_ts
-        # if elapsed_since_start > p.pot_fill_flow_start_timeout_s:
-        #     if weight_gained_total < p.pot_fill_min_gain_kg:
-        #         print(
-        #             f"[STARTUP_ORCH] ABORT: Pot fill — no flow detected after "
-        #             f"{elapsed_since_start:.0f}s (gained {weight_gained_total:.3f}kg)"
-        #         )
-        #         create_and_queue_command(name="pot.fill_stop", payload={})
-        #         program_state.abort("pot_fill_no_flow")
-        #         return
-
-        if not weight_valid:
-            if not self._fill_stop_sent and elapsed_since_start >= p.pot_fill_open_time_s:
-                print("[STARTUP_ORCH] Weight invalid — closing inlet (time-based)")
-                create_and_queue_command(name="pot.fill_stop", payload={})
-                self._fill_stop_sent = True
-                self._settle_start_ts = now
-            return
-
-        # ── Total timeout with progressive extension ──
-        # if elapsed_since_start > p.pot_fill_total_timeout_s:
-        #     if time_since_last_change > 10.0:
-        #         # Weight stopped moving — assume blocked or reservoir empty
-        #         print(
-        #             f"[STARTUP_ORCH] ABORT: Pot fill stalled — "
-        #             f"no weight change for {time_since_last_change:.0f}s"
-        #         )
-        #         create_and_queue_command(name="pot.fill_stop", payload={})
-        #         program_state.abort("pot_fill_stalled")
-        #         return
-            
-# // TESTING
-        if elapsed_since_start > p.pot_fill_total_timeout_s:
-            if time_since_last_change > 10.0:
-                print(
-                    f"[STARTUP_ORCH] WARNING: Pot fill stalled — forcing continue"
-                )
-
-                # close inlet and proceed anyway
-                create_and_queue_command(name="pot.fill_stop", payload={})
-
-                self._fill_stop_sent = True
-                self._settle_start_ts = now
+            if current_kg >= p.pot_fill_target_kg:
+                print("[STARTUP_ORCH] Target reached")
+                self._fill_state = "CLOSE_INLET"
                 return
 
-            # Weight still moving but slowly — log and continue
-            print(
-                f"[STARTUP_ORCH] Pot fill slow — {current_kg:.3f}kg "
-                f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
-            )
+            if elapsed > p.pot_fill_total_timeout_s:
+                print("[STARTUP_ORCH] Fill timeout")
+                self._fill_state = "CLOSE_INLET"
+                return
 
-        # ── Target reached ──
-        if current_kg >= p.pot_fill_target_kg:
-            print(
-                f"[STARTUP_ORCH] Pot filled ({current_kg:.3f}kg) — "
-                f"closing inlet, settling {p.pot_fill_settle_s}s"
-            )
-            create_and_queue_command(name="pot.fill_stop", payload={})
-            self._fill_stop_sent = True
-            self._settle_start_ts = now
             return
 
-        # ── Progress log every 5s ──
-        if int(elapsed_since_start) % 5 == 0 and int(elapsed_since_start) > 0:
-            print(
-                f"[STARTUP_ORCH] Filling: {current_kg:.3f}kg / {p.pot_fill_target_kg}kg "
-                f"(+{weight_gained_total:.3f}kg in {elapsed_since_start:.0f}s)"
+
+        # 6️⃣ Close inlet
+        if self._fill_state == "CLOSE_INLET":
+
+            print("[STARTUP_ORCH] Closing inlet")
+
+            create_and_queue_command(
+                name="pot.fill_stop",
+                payload={}
             )
+
+            self._fill_state = "CLOSE_VENT"
+            return
+
+
+        # 7️⃣ Close vent
+        if self._fill_state == "CLOSE_VENT":
+
+            print("[STARTUP_ORCH] Closing pot vent")
+
+            create_and_queue_command(
+                name="pot.vent_close",
+                payload={}
+            )
+
+            self._settle_start_ts = now
+            self._fill_state = "SETTLING"
+            return
+
+
+        # 8️⃣ Settling
+        if self._fill_state == "SETTLING":
+
+            if now - self._settle_start_ts < p.pot_fill_settle_s:
+                return
+
+            print("[STARTUP_ORCH] Pot fill settled")
+
+            self._fill_state = "DEPRESSURISE_RES"
+            return
+
+
+        # 9️⃣ Depressurise reservoir
+        if self._fill_state == "DEPRESSURISE_RES":
+
+            create_and_queue_command(
+                name="res.depressurise",
+                payload={}
+            )
+
+            self._fill_state = "COMPLETE"
+            return
+
+
+        # 🔟 Complete
+        if self._fill_state == "COMPLETE":
+
+            print("[STARTUP_ORCH] Fill complete → PRESSURISING")
+
+            program_state.on_pot_filled()
+
+            self._fill_state = "DONE"
 
     # ──────────────────────────────────────────────────────────────
     # PHASE 2: PRESSURISATION
