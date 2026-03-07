@@ -1,7 +1,5 @@
 # app/orchestrators/startup_orchestrator.py
 
-from fastapi import Request
-from app.main import app
 import json
 import time
 from app.state.program_state import program_state, ProgramPhase
@@ -24,6 +22,7 @@ class StartupOrchestrator:
     def __init__(self):
         self.profile: PaintProfile = DEFAULT_PROFILE
         # self.TEST_MODE = False   # ← Actual 
+        self.executor = None
         self.TEST_MODE = True   # ← Test 
         self._reset_state()
 
@@ -286,7 +285,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._fill_state = "PRESSURISE_RES"
@@ -304,7 +303,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._fill_state = "OPEN_INLET"
@@ -323,7 +322,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._fill_state = "OPEN_VENT"
@@ -342,7 +341,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._fill_phase_start_ts = now
@@ -393,7 +392,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._fill_state = "CLOSE_VENT"
@@ -411,7 +410,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._settle_start_ts = now
@@ -441,7 +440,7 @@ class StartupOrchestrator:
                 )
                 return
 
-            if app.state.executor.is_completed(self._active_cmd):
+            if self.executor.is_completed(self._active_cmd):
 
                 self._active_cmd = None
                 self._fill_state = "COMPLETE"

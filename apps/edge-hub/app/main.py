@@ -16,6 +16,7 @@ from app.api import status
 from app.api import demo
 from app.program.program_engine import ProgramEngine
 from app.program import program_engine as program_module
+from app.orchestrators.state_orchestrator import state_orchestrator
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -76,7 +77,9 @@ def startup_event():
         executor.start()
         mqtt_client.executor = executor
         app.state.executor = executor
+        state_orchestrator.set_executor(executor)
         _log("3A. Executor started")
+
 
         # ---------- Program Engine ----------
         _log("3B. Creating Program Engine")

@@ -12,8 +12,21 @@ from app.modes.mode_types import ProcessMode
 
 class StateOrchestrator:
 
+    def __init__(self):
+        self.executor = None
+
+    def set_executor(self, executor):
+        self.executor = executor
+        startup_orchestrator.executor = executor
+
     def process(self, telemetry):
+
         now = clock.mono()
+
+        if not self.executor:
+            print("[STATE_ORCH] executor not injected yet")
+            return None, None
+
 
         # 1. Update machine state
         ms = machine_state_manager.apply_telemetry(telemetry)
