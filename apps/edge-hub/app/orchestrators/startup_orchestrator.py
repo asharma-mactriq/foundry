@@ -114,9 +114,10 @@ class StartupOrchestrator:
 
         program_state.begin_pot_filling()
 
+        self._fill_state = "DEPRESSURISE_POT"
+
         if self.TEST_MODE:
             print("[STARTUP_ORCH] TEST MODE ENABLED — bypassing sensors")
-            self._fill_state = "DEPRESSURISE_POT"
             
         print(
             f"[STARTUP_ORCH] begin() — profile={self.profile.name} "
@@ -271,61 +272,84 @@ class StartupOrchestrator:
         # 1️⃣ Depressurise pot
         if self._fill_state == "DEPRESSURISE_POT":
 
-            print("[STARTUP_ORCH] Venting pot")
+            if not self._fill_cmd_sent:
 
-            create_and_queue_command(
-                name="pot.depressurise",
-                payload={}
-            )
+                print("[STARTUP_ORCH] Venting pot")
 
-            self._fill_state = "PRESSURISE_RES"
-            return
+                create_and_queue_command(
+                    name="pot.depressurise",
+                    payload={}
+                )
 
+                self._fill_cmd_sent = True
+                self._fill_phase_start_ts = now
+                return
+
+            # wait some time before next state
+            if now - self._fill_phase_start_ts > 2:
+                self._fill_cmd_sent = False
+                self._fill_state = "PRESSURISE_RES"
 
         # 2️⃣ Pressurise reservoir
         if self._fill_state == "PRESSURISE_RES":
 
-            print("[STARTUP_ORCH] Pressurising reservoir")
+            if not self._fill_cmd_sent:
 
-            create_and_queue_command(
-                name="res.pressurise",
-                payload={"open_ms": int(p.pressurise_open_s * 5000)}
-            )
+                print("[STARTUP_ORCH] Pressurising reservoir")
 
-            self._fill_state = "OPEN_INLET"
-            return
+                create_and_queue_command(
+                    name="res.pressurise",
+                    payload={"open_ms": int(p.pressurise_open_s * 1000)}
+                )
+
+                self._fill_cmd_sent = True
+                self._fill_phase_start_ts = now
+                return
+
+            if now - self._fill_phase_start_ts > p.pressurise_open_s:
+                self._fill_cmd_sent = False
+                self._fill_state = "OPEN_INLET"
 
 
         # 3️⃣ Open inlet
         if self._fill_state == "OPEN_INLET":
 
-            print("[STARTUP_ORCH] Opening inlet")
+            if not self._fill_cmd_sent:
 
-            create_and_queue_command(
-                name="pot.fill_start",
-                payload={"target_kg": p.pot_fill_target_kg}
-            )
+                print("[STARTUP_ORCH] Opening inlet")
 
+                create_and_queue_command(
+                    name="pot.fill_start",
+                    payload={"target_kg": p.pot_fill_target_kg}
+                )
+
+                self._fill_cmd_sent = True
+                return
+
+            # once sent, immediately proceed
+            self._fill_cmd_sent = False
             self._fill_state = "OPEN_VENT"
-            return
 
 
         # 4️⃣ Open vent
         if self._fill_state == "OPEN_VENT":
 
-            print("[STARTUP_ORCH] Opening pot vent")
+            if not self._fill_cmd_sent:
 
-            create_and_queue_command(
-                name="pot.vent_open",
-                payload={}
-            )
+                print("[STARTUP_ORCH] Opening pot vent")
 
-            self._fill_phase_start_ts = now
-            self._fill_phase_start_weight = current_kg
+                create_and_queue_command(
+                    name="pot.vent_open",
+                    payload={}
+                )
 
+                self._fill_cmd_sent = True
+                self._fill_phase_start_ts = now
+                self._fill_phase_start_weight = current_kg
+                return
+
+            self._fill_cmd_sent = False
             self._fill_state = "FILLING"
-            return
-
 
         # 5️⃣ Filling
         if self._fill_state == "FILLING":
@@ -361,30 +385,40 @@ class StartupOrchestrator:
         # 6️⃣ Close inlet
         if self._fill_state == "CLOSE_INLET":
 
-            print("[STARTUP_ORCH] Closing inlet")
+            if not self._fill_cmd_sent:
 
-            create_and_queue_command(
-                name="pot.fill_stop",
-                payload={}
-            )
+                print("[STARTUP_ORCH] Closing inlet")
 
+                create_and_queue_command(
+                    name="pot.fill_stop",
+                    payload={}
+                )
+
+                self._fill_cmd_sent = True
+                return
+
+            self._fill_cmd_sent = False
             self._fill_state = "CLOSE_VENT"
-            return
 
 
         # 7️⃣ Close vent
         if self._fill_state == "CLOSE_VENT":
 
-            print("[STARTUP_ORCH] Closing pot vent")
+            if not self._fill_cmd_sent:
 
-            create_and_queue_command(
-                name="pot.vent_close",
-                payload={}
-            )
+                print("[STARTUP_ORCH] Closing pot vent")
 
-            self._settle_start_ts = now
+                create_and_queue_command(
+                    name="pot.vent_close",
+                    payload={}
+                )
+
+                self._fill_cmd_sent = True
+                self._settle_start_ts = now
+                return
+
+            self._fill_cmd_sent = False
             self._fill_state = "SETTLING"
-            return
 
 
         # 8️⃣ Settling
