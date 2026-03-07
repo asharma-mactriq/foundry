@@ -178,9 +178,11 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     elif cmd_name == "dispense.open":
         open_ms = payload.get("open_ms", 1000)
         steps += [
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "WAIT_MS", "durationMs": open_ms},
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["nozzle"]},
             {"type": "EMIT_EVENT", "eventName": "dispense_complete"},
         ]
 
