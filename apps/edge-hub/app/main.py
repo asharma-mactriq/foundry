@@ -38,7 +38,7 @@ app.mount(
 # ROOT = os.path.dirname(os.path.abspath(__file__))
 # RULE_PATH = os.path.join(ROOT, "..", "rules", "rule-registry.json")
 
-RULE_PATH = "/smart/opt/edge-station/repo/apps/edge-hub/app/rules/rule-registry.json"
+RULE_PATH = "/opt/edge-station/repo/apps/edge-hub/app/rules/rule-registry.json"
 
 def _log(msg: str):
     print(f"[MAIN] {msg}")
