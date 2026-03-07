@@ -8,6 +8,7 @@ from app.services.command_executor import CommandExecutor
 from app.services.rule_engine import get_rule_engine
 from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
 from app.orchestrators.mid_refill_orchestrator import MidRefillOrchestrator
+from app.orchestrators.pressure_orchestrator import pressure_orchestrator
 
 from app.program.strategies.base_strategy import DispenseContext
 from app.program.strategies.time_based import TimeBasedStrategy
@@ -206,6 +207,8 @@ class ProgramEngine:
                 f"(open_lag={self.profile.nozzle_open_lag_ms}ms "
                 f"close_lag={self.profile.nozzle_close_lag_ms}ms)"
             )
+
+        pressure_orchestrator.notify_dispense()
 
         self.executor.send_command({
             "name": "dispense.open",
