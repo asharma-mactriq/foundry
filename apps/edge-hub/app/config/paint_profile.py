@@ -44,7 +44,7 @@ class PaintProfile:
     # Fixed open time for pot_air_in (time-based, not pressure-based)
     # 6L pot at 3 bar input — 10-15s is typical
     # Thick paste needs higher pressure to flow → err on longer side
-    pressurise_open_s: float = 4.0
+    pressurise_open_s: float = 2.0
 
     # Hard ceiling — never exceed this open time regardless of anything
     pressurise_max_open_s: float = 25.0
@@ -103,7 +103,7 @@ class PaintProfile:
     # Solenoid open duration per gap (ms)
     # This is the SOLENOID open time, not the actual paint-out time
     # Tune this first before worrying about lags
-    dispense_open_ms: int = 400
+    dispense_open_ms: int = 1000
 
     # Lag from solenoid open to paint actually exiting nozzles (ms)
     # Accounts for: pressure wave travel, nozzle spring overcome, viscosity
