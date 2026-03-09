@@ -18,31 +18,29 @@ class PressureOrchestrator:
         if not self.executor:
             return
 
+        ps = program_state
+        ms = machine_state_manager.state
+        now = clock.mono()
+
+        if ps.phase != ProgramPhase.RUNNING:
+            return
+
+        if ms.gap == 1:   # plate under nozzle
+            return
+
         if self.executor.is_busy():
             return
 
-        ps = program_state
-        now = clock.mono()
-
-        # Only maintain pressure during normal operation
-        if ps.phase not in (
-            ProgramPhase.READY,
-            ProgramPhase.RUNNING,
-        ):
-            return
-
-        # prevent spam if command just issued
         if now - self.last_pressurise_ts < 5:
             return
 
-        # idle refresh
         if now - self.last_pressurise_ts > 20:
             self._pressurise()
             return
 
-        # refresh after several dispenses
         if self.dispense_count >= 10:
             self._pressurise()
+
 
     def _pressurise(self):
 
