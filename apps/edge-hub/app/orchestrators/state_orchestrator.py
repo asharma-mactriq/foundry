@@ -76,6 +76,8 @@ class StateOrchestrator:
         if program_engine:
             program_engine.on_event(ms, ps)
 
+        pressure_orchestrator.process()
+
         return ms, ps
 
     # ──────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import time
 from app.state.program_state import program_state, ProgramPhase
 from app.state.machine_state import machine_state_manager
+from app.core import clock
 
 class PressureOrchestrator:
 
@@ -21,7 +22,7 @@ class PressureOrchestrator:
             return
 
         ps = program_state
-        now = time.time()
+        now = clock.mono()
 
         # Only maintain pressure during normal operation
         if ps.phase not in (
@@ -52,7 +53,7 @@ class PressureOrchestrator:
             "payload": {"open_ms": 2000}
         })
 
-        self.last_pressurise_ts = time.time()
+        self.last_pressurise_ts = clock.mono()
         self.dispense_count = 0
 
 
