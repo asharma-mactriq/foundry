@@ -8,19 +8,38 @@ from app.services.command_executor import CommandExecutor
 from app.services.rule_engine import get_rule_engine
 from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
 from app.orchestrators.mid_refill_orchestrator import MidRefillOrchestrator
-from app.orchestrators.pressure_orchestrator import pressure_orchestrator
 
 from app.program.strategies.base_strategy import DispenseContext
 from app.program.strategies.time_based import TimeBasedStrategy
 from app.program.strategies.gravimetric import GravimetricStrategy
 
+
 class ProgramEngine:
     """
     Drives program lifecycle:
-      start_program() → STARTED → LOADED → STARTUP
+      start_program() → STARTED → LOADED
           → startup_orchestrator.begin() takes over →
       POT_FILLING → PRESSURISING → LINE_PRIMING → READY → RUNNING
           ↕ MID_REFILLING (transparent, returns to RUNNING)
+
+    Pressure model — physical basis:
+      Working range:        0.28 – 0.35 MPa
+      Charge rate:          0.35 MPa / 9s ≈ 0.0389 MPa/s  (full pot)
+      Idle bleed:           0.00117 MPa/s  (solenoid closed, ~5min to zero)
+      Dispense bleed:       0.05 MPa/s    (solenoid open)
+
+      Derived:
+        Idle: 60s to bleed from 0.35 → 0.28 — top-up fires around 50s idle
+        Dispense: 1.4s to bleed 0.35 → 0.28 during active dispense
+        Top-up from 0.28 → 0.35: ~1.8s of pot_air_in
+
+      Strategy:
+        Track estimated_pressure_mpa each tick.
+        Apply idle or dispense bleed each tick depending on solenoid state.
+        Apply charge rate when pot_air_in is open.
+        Fire top-up pulse when estimate < pressure_low_mpa.
+        Stop pulse when estimate >= pressure_high_mpa OR max pulse time exceeded.
+        Block all other commands while pot_air_in is open.
     """
 
     def __init__(self, executor: CommandExecutor):
@@ -29,20 +48,104 @@ class ProgramEngine:
         self.config: dict = {}
         self.profile: PaintProfile = DEFAULT_PROFILE
 
-        # Startup
         self._startup_sent = False
-
-        # Mid-run refill state machine
-        # Mid-refill orchestrator
         self.mid_refill_orchestrator = MidRefillOrchestrator(executor)
         self.strategy = None
-        # self._refill_state = "IDLE"       # IDLE | FILLING | SETTLING
-        # self._refill_weight_before = 0.0
-        # self._refill_fill_stop_sent = False
-        # self._refill_settle_start = 0.0
-        # self._last_refill_ts = 0.0
-        # self._refill_attempts = 0
-        # self.consecutive_failed_refills = 0
+
+        self._reset_pressure_state()
+
+    # ──────────────────────────────────────────────────────────────
+    # Pressure model state
+    # ──────────────────────────────────────────────────────────────
+    def _reset_pressure_state(self):
+        # Estimated pot pressure in MPa — the single number we track
+        self._estimated_pressure_mpa: float = 0.0
+
+        # Timestamp of last model update (used to compute elapsed per tick)
+        self._pressure_last_ts: float = time.time()
+
+        # True while pot_air_in is open for a top-up pulse
+        self._pressure_pulse_active: bool = False
+
+        # Timestamp when current pulse opened
+        self._pressure_pulse_start_ts: float = 0.0
+
+        # True after pressurise_stop sent — clear next tick
+        self._pressure_stop_sent: bool = False
+
+        # Timestamp when last pulse completed (for cooldown)
+        self._pressure_pulse_end_ts: float = 0.0
+
+    def seed_pressure(self, open_s: float, current_kg: float):
+        """
+        Called after any pot_air_in open event (startup pressurise,
+        mid-refill repressurise) so the model starts accurately.
+
+        Computes how much pressure was built by that open duration,
+        accounting for current paint weight (headspace).
+        """
+        p = self.profile
+        charge_rate = self._charge_rate_mpa_per_s(current_kg)
+        gained = charge_rate * open_s
+        self._estimated_pressure_mpa = min(
+            self._estimated_pressure_mpa + gained,
+            p.pressure_high_mpa
+        )
+        self._pressure_last_ts = time.time()
+        print(
+            f"[PRESSURE_MODEL] Seeded — open_s={open_s:.1f}s "
+            f"charge_rate={charge_rate:.5f} MPa/s "
+            f"gained={gained:.4f} MPa "
+            f"estimated={self._estimated_pressure_mpa:.4f} MPa"
+        )
+
+    def _charge_rate_mpa_per_s(self, current_kg: float) -> float:
+        """
+        How fast pot pressurises at current fill weight.
+        More paint = less headspace = faster charge.
+        charge_rate = (pressure_high / charge_time_s) * (current_kg / ref_kg) * factor
+        """
+        p = self.profile
+        if current_kg <= 0:
+            current_kg = p.pressure_model_ref_kg
+        base_rate = p.pressure_high_mpa / p.pressure_charge_time_s
+        weight_ratio = current_kg / p.pressure_model_ref_kg
+        return base_rate * weight_ratio * p.pressure_model_headspace_factor
+
+    def _update_pressure_model(self, now: float, dispensing_active: bool):
+        """
+        Tick the pressure model:
+          - Apply bleed (idle or dispense rate) for elapsed time
+          - If pulse active, apply charge for elapsed time
+          - Clamp to [0, pressure_high_mpa]
+        """
+        p = self.profile
+        mat = material_state_manager.state
+        elapsed = now - self._pressure_last_ts
+        self._pressure_last_ts = now
+
+        if elapsed <= 0:
+            return
+
+        # Apply bleed
+        if dispensing_active:
+            bleed = p.pressure_dispense_bleed_mpa_per_s * elapsed
+        else:
+            bleed = p.pressure_idle_bleed_mpa_per_s * elapsed
+
+        self._estimated_pressure_mpa = max(
+            0.0,
+            self._estimated_pressure_mpa - bleed
+        )
+
+        # Apply charge if pot_air_in open
+        if self._pressure_pulse_active:
+            current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
+            charge = self._charge_rate_mpa_per_s(current_kg) * elapsed
+            self._estimated_pressure_mpa = min(
+                self._estimated_pressure_mpa + charge,
+                p.pressure_high_mpa
+            )
 
     # ──────────────────────────────────────────────────────────────
     # API
@@ -51,23 +154,12 @@ class ProgramEngine:
         print(f"[PROGRAM_ENGINE] START PROGRAM config={config}")
         self.config = config
 
-        # Load paint profile for this program run
         profile_name = config.get("paint_profile")
         self.profile = get_profile(profile_name)
 
-        # Reset all state
         self.mid_refill_orchestrator.reset()
+        self._reset_pressure_state()
 
-        # self._startup_sent = False
-        # self._refill_state = "IDLE"
-        # self._refill_weight_before = 0.0
-        # self._refill_fill_stop_sent = False
-        # self._refill_settle_start = 0.0
-        # self._last_refill_ts = 0.0
-        # self._refill_attempts = 0
-        # self.consecutive_failed_refills = 0
-
-        # Reset startup orchestrator
         from app.orchestrators.startup_orchestrator import startup_orchestrator
         startup_orchestrator.reset()
 
@@ -81,7 +173,7 @@ class ProgramEngine:
     def abort(self, reason: str = None):
         from app.modes.mode_manager import mode_manager
         from app.modes.mode_types import OperationMode, ProcessMode
-        self.set_phase(ProgramPhase.ABORT, reason or "abort")
+        program_state.set_phase(ProgramPhase.ABORT, reason or "abort")
         mode_manager.set_operation(OperationMode.manual)
         mode_manager.set_process(ProcessMode.idle)
 
@@ -93,12 +185,9 @@ class ProgramEngine:
         self.executor.send_command({"name": "program.stop", "payload": {}})
         program_state.stop_program()
 
-        # Always reset modes — program.load requires manual + idle
         mode_manager.set_operation(OperationMode.manual)
         mode_manager.set_process(ProcessMode.idle)
         print("[PROGRAM_ENGINE] Modes reset → manual/idle")
-
-
 
     # ──────────────────────────────────────────────────────────────
     # Main event loop — called every telemetry tick
@@ -106,7 +195,7 @@ class ProgramEngine:
     def on_event(self, machine, program):
         ps = program
         mat = material_state_manager.state
-        # print(f"[PROGRAM_ENGINE] phase={ps.phase}")
+
         if ps.last_event:
             print(f"[PROGRAM_ENGINE] event={ps.last_event} phase={ps.phase}")
 
@@ -114,17 +203,8 @@ class ProgramEngine:
             return
 
         if ps.phase == ProgramPhase.STARTED:
-            return   # waiting for program.load ACK
+            return
 
-        # if ps.phase == ProgramPhase.LOADED:
-        #     ps.begin_startup()
-        #     return
-
-        # if ps.phase == ProgramPhase.STARTUP:
-        #     self._handle_startup()
-        #     return
-
-        # Startup orchestrator owns these phases
         if ps.phase in (
             ProgramPhase.POT_FILLING,
             ProgramPhase.PRESSURISING,
@@ -141,22 +221,27 @@ class ProgramEngine:
         if ps.phase not in (ProgramPhase.READY, ProgramPhase.RUNNING):
             return
 
-        # Mid-run refill check (only in RUNNING)
+        # ── RUNNING / READY ───────────────────────────────────────
+        now = time.time()
+
+        # Tick pressure model — must happen every tick regardless
+        dispensing_active = getattr(mat, "dispensing_active", False)
+        self._update_pressure_model(now, dispensing_active)
+
+        # Step 1: Pressure maintenance — returns True if pot_air_in
+        # is open or a command was just sent. Block everything else.
+        if self._maintain_pressure(now, mat):
+            return
+
+        # Step 2: Mid-run refill — only in RUNNING
         if ps.phase == ProgramPhase.RUNNING:
-            # mat = material_state_manager.state
-            if (
-                mat.current_pot_kg < self.profile.mid_refill_threshold_kg
-                and not self.executor.is_busy()
-            ):
+            if mat.current_pot_kg < self.profile.mid_refill_threshold_kg:
                 self.mid_refill_orchestrator.begin(self.profile)
                 return
 
-        # if ps.phase == ProgramPhase.RUNNING:
-        #     self._maybe_trigger_refill()
-
-        # Gap/dispense events
+        # Step 3: Gap / dispense events
         event = ps.last_event
-        ps.last_event = None  # ← clear before handlers, not after
+        ps.last_event = None
 
         if event == "pass_enter":
             self._handle_pass_enter(ps)
@@ -165,19 +250,92 @@ class ProgramEngine:
         elif event == "pass_exit":
             self._handle_pass_exit(ps)
 
-        # ps.last_event = None
+    # ──────────────────────────────────────────────────────────────
+    # PRESSURE MAINTENANCE
+    #
+    # Three cases per tick:
+    #
+    # STOP_SENT (last tick we sent pressurise_stop):
+    #   Clear pulse state. Return False — unblock commands.
+    #
+    # PULSE_ACTIVE (pot_air_in currently open):
+    #   Check two stop conditions:
+    #     a) Estimated pressure reached pressure_high_mpa → stop
+    #     b) Pulse has been open for pressure_top_up_max_s → stop (safety)
+    #   Return True — block all other commands.
+    #
+    # IDLE (no pulse active):
+    #   Check cooldown.
+    #   If estimated_pressure < pressure_low_mpa → fire pulse.
+    #   Return True if pulse just fired, False otherwise.
+    #
+    # Returns True  → caller must return immediately (command in flight)
+    # Returns False → caller may proceed with other commands
+    # ──────────────────────────────────────────────────────────────
+    def _maintain_pressure(self, now: float, mat) -> bool:
+        from app.commands.helpers import create_and_queue_command
 
-    # ──────────────────────────────────────────────────────────────
-    # STARTUP: send startup.sequence firmware command once
-    # ──────────────────────────────────────────────────────────────
-    # def _handle_startup(self):
-    #     if self._startup_sent:
-    #         return
-    #     print("[PROGRAM_ENGINE] Sending startup.sequence to firmware")
-    #     self._startup_sent = True
-    #     self.executor.send_command({"name": "startup.sequence", "payload": {}})
-    #     # startup_orchestrator.begin() is called from command_executor
-    #     # when startup.sequence command.completed ACK arrives
+        p = self.profile
+
+        # ── Case 1: stop was sent last tick ──────────────────────
+        if self._pressure_stop_sent:
+            self._pressure_pulse_active = False
+            self._pressure_stop_sent = False
+            self._pressure_pulse_end_ts = now
+            print(
+                f"[PRESSURE_MODEL] Pulse closed — "
+                f"estimated={self._estimated_pressure_mpa:.4f} MPa"
+            )
+            return False
+
+        # ── Case 2: pulse is currently open ──────────────────────
+        if self._pressure_pulse_active:
+            pulse_elapsed = now - self._pressure_pulse_start_ts
+            stop = False
+            reason = ""
+
+            if self._estimated_pressure_mpa >= p.pressure_high_mpa:
+                stop = True
+                reason = f"reached {p.pressure_high_mpa} MPa"
+            elif pulse_elapsed >= p.pressure_top_up_max_s:
+                stop = True
+                reason = f"max pulse time {p.pressure_top_up_max_s}s reached"
+
+            if stop:
+                print(
+                    f"[PRESSURE_MODEL] Closing pot_air_in — {reason} "
+                    f"after {pulse_elapsed:.2f}s"
+                )
+                create_and_queue_command(name="pot.pressurise_stop", payload={})
+                self._pressure_stop_sent = True
+
+            return True   # pulse active — always block
+
+        # ── Case 3: idle — check if top-up needed ────────────────
+        if now - self._pressure_pulse_end_ts < p.pressure_top_up_cooldown_s:
+            return False
+
+        if self._estimated_pressure_mpa >= p.pressure_low_mpa:
+            return False
+
+        # Pressure below low threshold — fire top-up
+        current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
+        charge_rate = self._charge_rate_mpa_per_s(current_kg)
+        deficit = p.pressure_high_mpa - self._estimated_pressure_mpa
+        est_needed_s = deficit / charge_rate if charge_rate > 0 else p.pressure_top_up_max_s
+
+        print(
+            f"[PRESSURE_MODEL] Low — "
+            f"estimated={self._estimated_pressure_mpa:.4f} MPa "
+            f"< low={p.pressure_low_mpa} MPa — "
+            f"firing top-up (deficit={deficit:.4f} MPa, "
+            f"est {est_needed_s:.1f}s to reach {p.pressure_high_mpa} MPa)"
+        )
+        create_and_queue_command(name="pot.pressurise", payload={})
+        self._pressure_pulse_active = True
+        self._pressure_stop_sent = False
+        self._pressure_pulse_start_ts = now
+        return True
 
     # ──────────────────────────────────────────────────────────────
     # PASS EVENTS
@@ -197,18 +355,17 @@ class ProgramEngine:
         open_ms = self._dispense_ms_for_pass(pid)
         p = program.passes.get(pid)
         if p:
-            # Record expected using effective time (accounts for lags)
-            effective_ms = max(0, open_ms - self.profile.nozzle_open_lag_ms - self.profile.nozzle_close_lag_ms)
-            p.expected_paint = effective_ms   # store ms as proxy until flow sensor added
+            effective_ms = max(
+                0,
+                open_ms - self.profile.nozzle_open_lag_ms - self.profile.nozzle_close_lag_ms
+            )
+            p.expected_paint = effective_ms
             print(
                 f"[PROGRAM_ENGINE] PASS {pid} dispense — "
                 f"solenoid_open_ms={open_ms} "
                 f"effective_ms={effective_ms} "
-                f"(open_lag={self.profile.nozzle_open_lag_ms}ms "
-                f"close_lag={self.profile.nozzle_close_lag_ms}ms)"
+                f"estimated_pressure={self._estimated_pressure_mpa:.4f} MPa"
             )
-
-        pressure_orchestrator.notify_dispense()
 
         self.executor.send_command({
             "name": "dispense.open",
@@ -224,109 +381,14 @@ class ProgramEngine:
         })
 
     # ──────────────────────────────────────────────────────────────
-    # MID-RUN REFILL
-    # Triggered from RUNNING when pot drops below profile threshold.
-    # State machine: IDLE → FILLING → SETTLING → IDLE
-    # ──────────────────────────────────────────────────────────────
-    # def _maybe_trigger_refill(self):
-    #     mat = material_state_manager.state
-    #     p = self.profile
-    #     now = time.time()
-
-    #     if mat.current_pot_kg >= p.mid_refill_threshold_kg:
-    #         return
-    #     if now - self._last_refill_ts < p.mid_refill_cooldown_s:
-    #         return
-    #     if self._refill_state != "IDLE":
-    #         return
-    #     if self.executor.is_busy():
-    #         return
-    #     if self.consecutive_failed_refills >= p.mid_refill_max_failures:
-    #         print(
-    #             f"[PROGRAM_ENGINE] Refill lockout — "
-    #             f"{self.consecutive_failed_refills} consecutive failures "
-    #             f"(reservoir likely empty)"
-    #         )
-    #         return
-
-    #     print(
-    #         f"[PROGRAM_ENGINE] Mid-run refill triggered — "
-    #         f"pot={mat.current_pot_kg:.3f}kg < threshold={p.mid_refill_threshold_kg}kg"
-    #     )
-
-    #     self._refill_weight_before = mat.current_pot_kg
-    #     self._refill_fill_stop_sent = False
-    #     self._refill_state = "FILLING"
-    #     self._last_refill_ts = now
-    #     self._refill_attempts += 1
-
-    #     program_state.begin_mid_refill()
-
-    #     self.executor.send_command({
-    #         "name": "pot.fill_start",
-    #         "payload": {"target_kg": p.mid_refill_target_kg}
-    #     })
-
-    # def _handle_mid_refill(self):
-    #     mat = material_state_manager.state
-    #     p = self.profile
-    #     now = time.time()
-
-    #     if self._refill_state == "FILLING":
-    #         if not self._refill_fill_stop_sent:
-    #             if mat.current_pot_kg >= p.mid_refill_target_kg:
-    #                 print(
-    #                     f"[PROGRAM_ENGINE] Mid-refill target reached "
-    #                     f"({mat.current_pot_kg:.3f}kg) — closing inlet"
-    #                 )
-    #                 self.executor.send_command({
-    #                     "name": "pot.fill_stop",
-    #                     "payload": {}
-    #                 })
-    #                 self._refill_fill_stop_sent = True
-    #                 self._refill_settle_start = now
-    #                 self._refill_state = "SETTLING"
-
-    #     if self._refill_state == "SETTLING":
-    #         if now - self._refill_settle_start >= p.mid_refill_settle_s:
-    #             gain = mat.current_pot_kg - self._refill_weight_before
-    #             print(
-    #                 f"[PROGRAM_ENGINE] Mid-refill settle done — "
-    #                 f"gain={gain:.3f}kg (min_expected={p.mid_refill_min_gain_kg}kg)"
-    #             )
-
-    #             if gain < p.mid_refill_min_gain_kg:
-    #                 self.consecutive_failed_refills += 1
-    #                 print(
-    #                     f"[PROGRAM_ENGINE] Refill underperformed — "
-    #                     f"suspect reservoir low "
-    #                     f"({self.consecutive_failed_refills}/{p.mid_refill_max_failures})"
-    #                 )
-    #             else:
-    #                 self.consecutive_failed_refills = 0
-    #                 print("[PROGRAM_ENGINE] Refill successful")
-
-    #             self._refill_state = "IDLE"
-    #             program_state.on_mid_refill_done()  # → RUNNING
-
-    # ──────────────────────────────────────────────────────────────
     # Helpers
     # ──────────────────────────────────────────────────────────────
     def _dispense_ms_for_pass(self, pid: int) -> int:
-        """
-        Return solenoid open_ms for this pass.
-        Priority: per-pass config > profile default.
-        """
         passes = self.config.get("passes", {})
         pass_cfg = passes.get(str(pid), {})
-
-        # Per-pass override takes priority
         if "open_ms" in pass_cfg:
             return int(pass_cfg["open_ms"])
-
-        # Profile default
         return self.profile.dispense_open_ms
 
 
 program_engine = None
-

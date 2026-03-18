@@ -1,37 +1,17 @@
 # app/orchestrators/mid_refill_orchestrator.py
 #
-# FILL PHYSICS FOR THICK VISCOUS PAINT:
-#
-# Paint flows reservoir → pot only when:
-#   reservoir_pressure > pot_pressure + viscosity_resistance
-#
-# Problem: as paint enters pot, displaced air compresses in pot headspace,
-# building back-pressure that progressively stalls flow — especially with
-# thick paste that moves slowly and gives headspace pressure time to build.
-#
-# Solution: keep pot_air_out OPEN throughout fill so displaced air vents
-# continuously. This holds pot headspace near atmospheric the whole time.
-# Reservoir only needs to overcome viscosity resistance (constant),
-# not viscosity + growing back-pressure (nonlinear, stalls).
-#
 # Sequence:
-#   1. DEPRESSURISE_POT       — vent pot to atmospheric
-#   2. PRESSURISE_RES         — bring reservoir to working fill pressure
-#   3. OPEN_INLET             — open paint_inlet (executor ACK-gated)
-#   4. OPEN_VENT              — open pot_air_out to vent during fill
-#   5. FILLING                — hold both open, watch weight rise
-#   6. CLOSE_INLET            — close paint_inlet first (stops flow)
-#   7. CLOSE_VENT             — close pot_air_out second
-#   8. SETTLING               — wait for weight cell to stabilise
-#   9. DEPRESSURISE_RES       — safe the reservoir
-#  10. REPRESSURISE_POT       — bring pot back to working dispense pressure
-#
-# Valve map (from workflow_builder.py DEVICE_MAP):
-#   paint_inlet  (2) — paint flow from reservoir to pot
-#   pot_air_in   (3) — pressurises pot for dispense
-#   pot_air_out  (4) — vents pot pressure / headspace air during fill
-#   res_air_in   (5) — pressurises reservoir for fill
-#   res_air_out  (6) — vents reservoir pressure
+#   1. OPEN_VENT          — open pot_air_out, hold min 5s
+#   2. PRESSURISE_RES     — bring reservoir to working fill pressure
+#   3. OPEN_INLET         — open paint_inlet, watch weight
+#   4. FILLING            — wait until 90% of mid_refill_target_kg reached
+#   5. CLOSE_INLET        — close paint_inlet first (stops flow)
+#   6. CLOSE_RES          — vent reservoir pressure
+#   7. CLOSE_VENT         — close pot_air_out
+#   8. SETTLING           — wait for weight cell to stabilise
+#   9. REPRESSURISE_POT   — open pot_air_in for pressure_charge_time_s
+#  10. STOP_POT_PRESSURISE — close pot_air_in, seed pressure model
+#  11. COMPLETE           — on_mid_refill_done() → RUNNING
 
 import time
 from app.services.command_executor import CommandExecutor
@@ -51,18 +31,28 @@ class MidRefillOrchestrator:
         self.fill_start_ts = 0.0
         self.settle_start = 0.0
 
-        # Cooldown between refills
         self._last_refill_ts = 0.0
 
-        # Stall detection during fill
         self._fill_last_weight = 0.0
         self._fill_last_weight_ts = 0.0
+
+        self._vent_open_ts = 0.0
+        self._pot_pressurise_ts = 0.0
+        self._vent_cmd_completed = False
+        self._pot_pressurise_cmd_completed = False
+
+        # CHANGE 1: track actual open duration for pressure seeding
+        self._pot_pressurise_open_s = 0.0
 
     # ──────────────────────────────────────────────
     def reset(self):
         self.state = "IDLE"
         self._last_refill_ts = 0.0
-        # consecutive_failed_refills lives on MaterialState — reset there if needed
+        self._vent_open_ts = 0.0
+        self._pot_pressurise_ts = 0.0
+        self._vent_cmd_completed = False
+        self._pot_pressurise_cmd_completed = False
+        self._pot_pressurise_open_s = 0.0
 
     # ──────────────────────────────────────────────
     def begin(self, profile: PaintProfile):
@@ -88,14 +78,18 @@ class MidRefillOrchestrator:
         self.profile = profile
         self.weight_before = mat.current_pot_kg
         self._last_refill_ts = now
+        self._vent_cmd_completed = False
+        self._pot_pressurise_cmd_completed = False
+        self._pot_pressurise_open_s = 0.0
 
         print(
             f"[MID_REFILL] Begin — "
             f"pot={self.weight_before:.3f}kg "
-            f"target={profile.mid_refill_target_kg}kg"
+            f"target=90% of {profile.mid_refill_target_kg}kg "
+            f"= {profile.mid_refill_target_kg * 0.9:.3f}kg"
         )
         program_state.begin_mid_refill()
-        self.state = "DEPRESSURISE_POT"
+        self.state = "OPEN_VENT"
 
     # ──────────────────────────────────────────────
     def process(self):
@@ -106,91 +100,58 @@ class MidRefillOrchestrator:
         p = self.profile
         now = time.time()
 
-        # ── 1. Vent pot to atmospheric ────────────────────────────
-        # Must happen before pressurising reservoir.
-        # If pot is at working pressure (1.2 bar) and we open inlet,
-        # the pressure differential may be insufficient to start flow
-        # against thick paste viscosity.
-        if self.state == "DEPRESSURISE_POT":
-            print("[MID_REFILL] Venting pot to atmospheric")
-            self.executor.send_command({
-                "name": "pot.depressurise",
-                "payload": {}
-            })
-            self.state = "PRESSURISE_RES"
+        fill_target_kg = p.mid_refill_target_kg * 0.9
+
+        # ── 1. Open pot vent — hold min 5s ───────────────────────
+        if self.state == "OPEN_VENT":
+            if not self._vent_cmd_completed:
+                print("[MID_REFILL] Opening pot vent (min 5s)")
+                self.executor.send_command({
+                    "name": "pot.vent_open",
+                    "payload": {}
+                })
+                self._vent_open_ts = now
+                self._vent_cmd_completed = True
+                return
+
+            vent_elapsed = now - self._vent_open_ts
+            if vent_elapsed >= 5.0:
+                print(f"[MID_REFILL] Pot vent open for {vent_elapsed:.1f}s → pressurising reservoir")
+                self.state = "PRESSURISE_RES"
             return
 
-        # ── 2. Bring reservoir to working fill pressure ───────────
-        # Moderate pressure — enough to push thick paste through inlet
-        # pipe, not so much it blasts the reservoir seal.
-        # pressurise_open_s * 5000ms because reservoir has larger volume
-        # than pot and needs longer to reach working pressure.
-        # Tune pressurise_open_s in PaintProfile per paint viscosity.
+        # ── 2. Pressurise reservoir ───────────────────────────────
         if self.state == "PRESSURISE_RES":
             print("[MID_REFILL] Pressurising reservoir for fill")
             self.executor.send_command({
                 "name": "res.pressurise",
-                "payload": {"open_ms": int(p.pressurise_open_s * 5000)}
+                "payload": {"open_ms": int(p.pressurise_open_s * 1000)}
             })
             self.state = "OPEN_INLET"
             return
 
         # ── 3. Open inlet ─────────────────────────────────────────
-        # Opens paint_inlet valve. Executor ACK-gates so we know
-        # firmware confirmed it before proceeding to open vent.
         if self.state == "OPEN_INLET":
-            print("[MID_REFILL] Opening paint inlet")
+            print(
+                f"[MID_REFILL] Opening paint inlet "
+                f"(filling to 90% = {fill_target_kg:.3f}kg)"
+            )
             self.executor.send_command({
                 "name": "pot.fill_start",
-                "payload": {"target_kg": p.mid_refill_target_kg}
+                "payload": {"target_kg": fill_target_kg}
             })
-            self.state = "OPEN_VENT"
-            return
-
-        # ── 4. Open pot vent ──────────────────────────────────────
-        # THIS IS THE KEY STEP FOR THICK VISCOUS PAINT.
-        #
-        # pot_air_out stays OPEN throughout fill so displaced pot
-        # headspace air escapes continuously. Without this:
-        #   - Each kg of paint entering compresses ~0.22L of headspace
-        #   - Headspace pressure rises ~0.05 bar per kg of paint added
-        #   - After 2kg added, pot back-pressure ≈ 0.1 bar
-        #   - This reduces effective differential by ~10-15%
-        #   - Thick paste flow rate drops nonlinearly → stalls completely
-        #
-        # With vent open throughout:
-        #   - Pot headspace stays at ~0 bar (atmospheric)
-        #   - Reservoir pressure only fights viscosity resistance (constant)
-        #   - Fill rate stays consistent from start to finish
-        #   - No stalling mid-fill
-        if self.state == "OPEN_VENT":
-            print("[MID_REFILL] Opening pot vent (holds open during fill)")
-            self.executor.send_command({
-                "name": "pot.vent_open",
-                "payload": {}
-            })
-            # Start fill monitoring
             self.fill_start_ts = now
             self._fill_last_weight = mat.current_pot_kg
             self._fill_last_weight_ts = now
             self.state = "FILLING"
             return
 
-        # ── 5. Monitor fill ───────────────────────────────────────
-        # Both paint_inlet and pot_air_out are open.
-        # Executor is NOT busy (vent_open ACK received).
-        # We just watch weight — no command to send while filling.
-        #
-        # Three exit conditions:
-        #   a) Target weight reached — normal
-        #   b) Weight stalled >10s — reservoir empty or pipe blocked
-        #   c) Hard timeout — safety ceiling
+        # ── 4. Monitor fill ───────────────────────────────────────
         if self.state == "FILLING":
             current_kg = mat.current_pot_kg
             elapsed = now - self.fill_start_ts
             gained = current_kg - self.weight_before
 
-            # Update stall detector
             if abs(current_kg - self._fill_last_weight) > 0.01:
                 self._fill_last_weight = current_kg
                 self._fill_last_weight_ts = now
@@ -199,17 +160,15 @@ class MidRefillOrchestrator:
 
             print(
                 f"[MID_REFILL] Filling — "
-                f"pot={current_kg:.3f}kg "
+                f"pot={current_kg:.3f}kg / {fill_target_kg:.3f}kg "
                 f"(+{gained:.3f}kg in {elapsed:.0f}s)"
             )
 
-            # a) Target reached
-            if current_kg >= p.mid_refill_target_kg:
-                print(f"[MID_REFILL] Target reached ({current_kg:.3f}kg)")
+            if current_kg >= fill_target_kg:
+                print(f"[MID_REFILL] 90% target reached ({current_kg:.3f}kg)")
                 self.state = "CLOSE_INLET"
                 return
 
-            # b) Stall — no weight change for 10s after 5s warmup
             if elapsed > 5.0 and time_since_change > 10.0:
                 print(
                     f"[MID_REFILL] Fill stalled — "
@@ -219,37 +178,34 @@ class MidRefillOrchestrator:
                 self.state = "CLOSE_INLET"
                 return
 
-            # c) Hard timeout
             if elapsed > p.pot_fill_total_timeout_s:
                 print(f"[MID_REFILL] Fill timeout after {elapsed:.0f}s")
                 self.state = "CLOSE_INLET"
                 return
 
-            # Still filling — wait for next telemetry tick
             return
 
-        # ── 6. Close inlet first ──────────────────────────────────
-        # CLOSE ORDER MATTERS:
-        # Close inlet BEFORE vent.
-        #
-        # If you close vent first while inlet is open:
-        #   reservoir pressure has nowhere to go → forces a final
-        #   pressure slug of thick paint into sealed pot → spike.
-        #
-        # Close inlet first → reservoir pressure immediately drops
-        # (no more flow path) → safe to close vent with no spike.
+        # ── 5. Close inlet ────────────────────────────────────────
         if self.state == "CLOSE_INLET":
-            print("[MID_REFILL] Closing inlet first")
+            print("[MID_REFILL] Closing paint inlet")
             self.executor.send_command({
                 "name": "pot.fill_stop",
+                "payload": {}
+            })
+            self.state = "CLOSE_RES"
+            return
+
+        # ── 6. Vent reservoir ─────────────────────────────────────
+        if self.state == "CLOSE_RES":
+            print("[MID_REFILL] Venting reservoir")
+            self.executor.send_command({
+                "name": "res.depressurise",
                 "payload": {}
             })
             self.state = "CLOSE_VENT"
             return
 
         # ── 7. Close pot vent ─────────────────────────────────────
-        # Inlet is now confirmed closed (ACK received).
-        # Safe to close pot_air_out.
         if self.state == "CLOSE_VENT":
             print("[MID_REFILL] Closing pot vent")
             self.executor.send_command({
@@ -261,9 +217,6 @@ class MidRefillOrchestrator:
             return
 
         # ── 8. Settle ─────────────────────────────────────────────
-        # Weight cell needs time to stabilise after rapid fill.
-        # Thick paint sloshes; cell reads falsely high immediately
-        # after valve close. Wait settle time before recording gain.
         if self.state == "SETTLING":
             if now - self.settle_start < p.mid_refill_settle_s:
                 return
@@ -272,9 +225,6 @@ class MidRefillOrchestrator:
             gain = current_kg - self.weight_before
             print(f"[MID_REFILL] Settled — gain={gain:.3f}kg")
 
-            # Write outcome directly to MaterialState.
-            # rule_engine reads mat.consecutive_failed_refills without
-            # needing to import program_engine — no circular dependency.
             mat.last_refill_gain_kg = gain
             mat.last_refill_weight_before = self.weight_before
 
@@ -288,154 +238,80 @@ class MidRefillOrchestrator:
                 mat.consecutive_failed_refills = 0
                 print("[MID_REFILL] Refill successful")
 
-            self.state = "DEPRESSURISE_RES"
-            return
-
-        # ── 9. Safe the reservoir ─────────────────────────────────
-        # Vent remaining reservoir pressure.
-        # Never leave reservoir pressurised at idle — safety risk
-        # and causes false pressure readings on next fill.
-        if self.state == "DEPRESSURISE_RES":
-            print("[MID_REFILL] Venting reservoir")
-            self.executor.send_command({
-                "name": "res.depressurise",
-                "payload": {}
-            })
+            self._pot_pressurise_cmd_completed = False
             self.state = "REPRESSURISE_POT"
             return
 
-        # ── 10. Re-pressurise pot for dispense ────────────────────
-        # Pot is now at atmospheric (vented during fill, vent now closed).
-        # Must return to working pressure before dispense resumes.
-        # Uses same pressurise_open_s as startup — same physical result.
+        # ── 9. Re-pressurise pot ──────────────────────────────────
+        # CHANGE 2: hold for pressure_charge_time_s (from profile)
+        # instead of hardcoded 5s. This is the physically measured time
+        # to reach pressure_high_mpa at full pot. Using it here ensures
+        # the pot is reliably at the top of the working range before
+        # RUNNING resumes, matching startup behaviour exactly.
         if self.state == "REPRESSURISE_POT":
-            print("[MID_REFILL] Re-pressurising pot for dispense")
+            if not self._pot_pressurise_cmd_completed:
+                print(
+                    f"[MID_REFILL] Re-pressurising pot "
+                    f"(target={p.pressure_charge_time_s}s)"
+                )
+                self.executor.send_command({
+                    "name": "pot.pressurise",
+                    "payload": {}
+                })
+                self._pot_pressurise_ts = now
+                self._pot_pressurise_cmd_completed = True
+                return
+
+            pot_elapsed = now - self._pot_pressurise_ts
+            # CHANGE 2 (continued): use pressure_charge_time_s not 5.0
+            if pot_elapsed >= p.pressure_charge_time_s:
+                print(
+                    f"[MID_REFILL] Pot pressurised for "
+                    f"{pot_elapsed:.1f}s → closing pot_air_in"
+                )
+                # CHANGE 1: record actual duration for seeding
+                self._pot_pressurise_open_s = pot_elapsed
+                self.state = "STOP_POT_PRESSURISE"
+            return
+
+        # ── 10. Close pot_air_in ──────────────────────────────────
+        if self.state == "STOP_POT_PRESSURISE":
+            print("[MID_REFILL] Closing pot_air_in")
             self.executor.send_command({
-                "name": "pot.pressurise",
-                "payload": {"open_ms": int(p.pressurise_open_s * 1000)}
+                "name": "pot.pressurise_stop",
+                "payload": {}
             })
             self.state = "COMPLETE"
             return
 
-        # ── 11. Done ─────────────────────────────────────────────
+        # ── 11. Done ──────────────────────────────────────────────
         if self.state == "COMPLETE":
             print("[MID_REFILL] Complete → RUNNING")
             self.state = "IDLE"
+
+            # CHANGE 3: seed program_engine pressure model before
+            # handing control back to RUNNING. Without this, the model
+            # still has whatever decayed value it had when refill started
+            # (likely near zero after the vent-open fill sequence).
+            # With this, it knows the pot is back at pressure_high_mpa
+            # and won't fire an immediate top-up pulse on the next tick.
+            mat = material_state_manager.state
+            current_kg = mat.current_pot_kg or self.profile.pressure_model_ref_kg
+            self._seed_program_engine_pressure(
+                open_s=self._pot_pressurise_open_s,
+                current_kg=current_kg
+            )
+
             program_state.on_mid_refill_done()
 
-# import time
-# from app.services.command_executor import CommandExecutor
-# from app.state.material_state import material_state_manager
-# from app.state.program_state import program_state
-# from app.config.paint_profile import PaintProfile
-
-
-# class MidRefillOrchestrator:
-
-#     def __init__(self, executor: CommandExecutor):
-#         self.executor = executor
-#         self.profile: PaintProfile = None
-#         self.state = "IDLE"
-
-#         self.weight_before = 0.0
-#         self.settle_start = 0.0
-
-#     # ──────────────────────────────────────────────
-#     def reset(self):
-#         self.state = "IDLE"
-
-#     # ──────────────────────────────────────────────
-#     def begin(self, profile: PaintProfile):
-#         if self.state != "IDLE":
-#             return
-
-#         mat = material_state_manager.state
-#         self.profile = profile
-#         self.weight_before = mat.current_pot_kg
-
-#         print("[MID_REFILL] Pressure-assisted refill begin")
-#         program_state.begin_mid_refill()
-
-#         self.state = "DEPRESSURISE_POT"
-
-#     # ──────────────────────────────────────────────
-#     def process(self):
-
-#         if self.executor.is_busy():
-#             return
-
-#         mat = material_state_manager.state
-#         p = self.profile
-
-#         # 1️⃣ Depressurise pot
-#         if self.state == "DEPRESSURISE_POT":
-#             print("[MID_REFILL] Depressurising pot")
-#             self.executor.send_command({"name": "pot.depressurise", "payload": {}})
-#             self.state = "PRESSURISE_RES"
-#             return
-
-#         # 2️⃣ Pressurise reservoir
-#         if self.state == "PRESSURISE_RES":
-#             print("[MID_REFILL] Pressurising reservoir")
-#             self.executor.send_command({
-#                 "name": "res.pressurise",
-#                 "payload": {"open_ms": int(p.pressurise_open_s * 5000)}
-#             })
-#             self.state = "OPEN_INLET"
-#             return
-
-#         # 3️⃣ Open inlet
-#         if self.state == "OPEN_INLET":
-#             print("[MID_REFILL] Opening paint inlet")
-#             self.executor.send_command({
-#                 "name": "pot.fill_start",
-#                 "payload": {"target_kg": p.mid_refill_target_kg}
-#             })
-#             self.state = "WAIT_TARGET"
-#             return
-
-#         # 4️⃣ Wait for target
-#         if self.state == "WAIT_TARGET":
-#             # if mat.current_pot_kg >= p.mid_refill_target_kg:
-#             print("[MID_REFILL] Target reached")
-#             self.executor.send_command({
-#                 "name": "pot.fill_stop",
-#                 "payload": {}
-#             })
-#             self.settle_start = time.time()
-#             self.state = "SETTLING"
-#             return
-
-#         # 5️⃣ Settling
-#         if self.state == "SETTLING":
-#             if time.time() - self.settle_start < p.mid_refill_settle_s:
-#                 return
-
-#             gain = mat.current_pot_kg - self.weight_before
-#             print(f"[MID_REFILL] Gain after settle: {gain:.3f}kg")
-
-#             self.state = "DEPRESSURISE_RES"
-#             return
-
-#         # 6️⃣ Depressurise reservoir
-#         if self.state == "DEPRESSURISE_RES":
-#             print("[MID_REFILL] Depressurising reservoir")
-#             self.executor.send_command({"name": "res.depressurise", "payload": {}})
-#             self.state = "REPRESSURISE_POT"
-#             return
-
-#         # 7️⃣ Re-pressurise pot
-#         if self.state == "REPRESSURISE_POT":
-#             print("[MID_REFILL] Re-pressurising pot")
-#             self.executor.send_command({
-#                 "name": "pot.pressurise",
-#                 "payload": {"open_ms": int(p.pressurise_open_s * 1000)}
-#             })
-#             self.state = "COMPLETE"
-#             return
-
-#         # 8️⃣ Complete
-#         if self.state == "COMPLETE":
-#             print("[MID_REFILL] Refill complete → RUNNING")
-#             self.state = "IDLE"
-#             program_state.on_mid_refill_done()
+    def _seed_program_engine_pressure(self, open_s: float, current_kg: float):
+        """
+        Notify program_engine of how much pot_air_in time was banked
+        during REPRESSURISE_POT so it starts with an accurate estimate.
+        """
+        try:
+            from app.program.program_engine import program_engine
+            if program_engine is not None:
+                program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
+        except Exception as e:
+            print(f"[MID_REFILL] Could not seed pressure model: {e}")

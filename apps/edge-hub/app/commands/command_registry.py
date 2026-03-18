@@ -172,10 +172,23 @@ class CommandRegistry:
             group="pot",
             allowed_operation_modes=[],
             allowed_process_modes=[],
-            payload_schema={"open_ms": "int"},
+            payload_schema={},
+            # payload_schema={"open_ms": "int"},
             timeout_ms=30000,
             priority=80,
             description="Open pot_air_in for open_ms milliseconds (time-based)"
+        ))
+
+
+        self.register(CommandSpec(
+            name="pot.pressurise_stop",
+            group="pot",
+            allowed_operation_modes=[],
+            allowed_process_modes=[],
+            payload_schema={},
+            timeout_ms=3000,
+            priority=80,
+            description="Close pot_air_in — stop pressurisation"
         ))
 
         self.register(CommandSpec(

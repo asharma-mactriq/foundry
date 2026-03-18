@@ -142,14 +142,27 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "EMIT_EVENT", "eventName": "pot_fill_stopped"},
         ]
 
+    # elif cmd_name == "pot.pressurise":
+    #     open_ms = payload.get("open_ms", 12000)
+    #     steps += [
+    #         {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
+    #         {"type": "EMIT_EVENT", "eventName": "pressurise_start"},
+    #         {"type": "WAIT_MS", "durationMs": open_ms},
+    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
+    #         {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
+    #     ]
+
     elif cmd_name == "pot.pressurise":
-        open_ms = payload.get("open_ms", 12000)
         steps += [
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
-            {"type": "EMIT_EVENT", "eventName": "pressurise_start"},
-            {"type": "WAIT_MS", "durationMs": open_ms},
+            {"type": "EMIT_EVENT", "eventName": "pressurise_started"},
+        ]
+
+
+    elif cmd_name == "pot.pressurise_stop":
+        steps += [
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
-            {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
+            {"type": "EMIT_EVENT", "eventName": "pressurise_stopped"},
         ]
 
     elif cmd_name == "pot.depressurise":
