@@ -9,7 +9,6 @@ from app.state.system_state import system_state, SystemPhase
 from app.core import clock
 from app.modes.mode_manager import mode_manager
 from app.modes.mode_types import ProcessMode
-from app.orchestrators.pressure_orchestrator import pressure_orchestrator
 
 class StateOrchestrator:
 
@@ -19,7 +18,6 @@ class StateOrchestrator:
     def set_executor(self, executor):
         self.executor = executor
         startup_orchestrator.executor = executor
-        pressure_orchestrator.executor = executor
 
     def process(self, telemetry):
 
