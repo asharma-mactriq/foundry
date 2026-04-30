@@ -618,7 +618,7 @@ class ProgramEngine:
             "payload": {"open_ms": open_ms}
         })
 
-        machine.dispense_fired_for_gap = True   # ✅ latch
+        # machine.dispense_fired_for_gap = True   # ✅ latch
 
 
         # # MODULUS CONTROL
