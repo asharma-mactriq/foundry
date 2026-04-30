@@ -122,9 +122,9 @@ class TelemetryValidator:
             "paint_inlet": 1 if raw_valves.get("paint_inlet") else 0,
             "pot_air_in": 1 if raw_valves.get("pot_air_in") else 0,
             "pot_air_out": 1 if raw_valves.get("pot_air_out") else 0,
-            "res_air_in": 1 if raw_valves.get("res_air_in") else 0,
-            "res_air_out": 1 if raw_valves.get("res_air_out") else 0,
-            "nozzle": 1 if raw_valves.get("nozzle") else 0,
+            # "res_air_in": 1 if raw_valves.get("res_air_in") else 0,
+            # "res_air_out": 1 if raw_valves.get("res_air_out") else 0,
+            # "nozzle": 1 if raw_valves.get("nozzle") else 0,
         }
 
         # ─────────────────────────────────────
@@ -141,7 +141,7 @@ class TelemetryValidator:
         # 7. Validity Flags
         # ─────────────────────────────────────
         clean["pot_weight_valid"] = 1 if raw.get("pot_weight_valid") else 0
-        clean["res_weight_valid"] = 1 if raw.get("res_weight_valid") else 0
+        # clean["res_weight_valid"] = 1 if raw.get("res_weight_valid") else 0
 
         return clean
 
