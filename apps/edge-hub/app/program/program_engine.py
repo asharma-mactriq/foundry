@@ -195,7 +195,7 @@ class ProgramEngine:
         # 🔴 STARTUP TRIGGER (critical)
         from app.orchestrators.startup_orchestrator import startup_orchestrator
 
-        if ps.phase == ProgramPhase.LOADED and not startup_orchestrator.is_started():
+        if ps.phase in (ProgramPhase.LOADED, ProgramPhase.STARTUP) and not startup_orchestrator.is_started():
             from app.orchestrators.startup_orchestrator import startup_orchestrator
             print("[PROGRAM_ENGINE] LOADED → starting startup orchestrator")
             program_state.begin_startup()   # 🔴 ADD THIS LINE

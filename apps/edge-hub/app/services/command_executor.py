@@ -239,6 +239,16 @@ class CommandExecutor:
 
         if cmd_name == "program.load":
             program_state.on_loaded()
+
+            # 🔴 IMMEDIATE STARTUP TRIGGER
+            from app.program.program_engine import program_engine
+            from app.state.machine_state import machine_state_manager
+
+            if program_engine:
+                program_engine.on_event(
+                    machine_state_manager.state,
+                    program_state
+                )
               # 👇 TRIGGER STARTUP
             # self.send_command({
             #     "name": "startup.sequence",
