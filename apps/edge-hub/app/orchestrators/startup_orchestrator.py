@@ -22,7 +22,7 @@ class StartupOrchestrator:
         self._reset_state()
 
     def _reset_state(self):
-        self._fill_state = "IDLE"
+        self._pressurise_stage = "IDLE"
         self._active_cmd = None
 
         # CHANGE 1: track actual pot pressurise duration so we can
@@ -68,14 +68,14 @@ class StartupOrchestrator:
     #     #         f"going straight to pot pressurise"
     #     #     )
     #     #     program_state.begin_pot_filling()
-    #     #     self._fill_state = "PRESSURISE_POT"
+    #     #     self._pressurise_stage = "PRESSURISE_POT"
     #     #     return
 
     #     # self._fill_phase_start_ts = now
     #     # self._fill_phase_start_weight = current_kg
 
     #     # program_state.begin_pot_filling()
-    #     # self._fill_state = "OPEN_VENT"
+    #     # self._pressurise_stage = "OPEN_VENT"
 
     #     if self.TEST_MODE:
     #         print("[STARTUP_ORCH] TEST MODE ENABLED — bypassing sensors")
@@ -90,8 +90,9 @@ class StartupOrchestrator:
         if profile:
             self.profile = profile
 
-        program_state.begin_pot_filling()
-        self._fill_state = "PRESSURISE_POT"
+        # program_state.begin_pot_filling()
+        program_state.set_phase(ProgramPhase.PRESSURISING, "startup_pressurise_begin")
+        self._pressurise_stage = "PRESSURISE_POT"
 
         print("[STARTUP_ORCH] Begin → PRESSURISE_POT (fill disabled)")
 
@@ -103,20 +104,26 @@ class StartupOrchestrator:
         mat = material_state_manager.state
         ms = machine_state_manager.state
 
-        if ps.phase == ProgramPhase.POT_FILLING:
-            self._handle_pot_filling(mat)
+        # if ps.phase == ProgramPhase.POT_FILLING:
+        #     self._handle_pot_filling(mat)
+        # if ps.phase == ProgramPhase.PRESSURISING:
+        #     self._handle_pressurising(ms)
+
         if ps.phase == ProgramPhase.PRESSURISING:
-            self._handle_pressurising(ms)
+            if self._pressurise_stage != "DONE":
+                self._handle_pressurisation(mat)
+            else:
+                self._handle_pressurising(ms)
         elif ps.phase == ProgramPhase.LINE_PRIMING:
             self._handle_line_priming(mat)
 
-    def _handle_pot_filling(self, mat):
+    def _handle_pressurisation(self, mat):
         from app.commands.helpers import create_and_queue_command
         p = self.profile
         now = time.time()
 
         # STEP 1: PRESSURISE POT
-        if self._fill_state == "PRESSURISE_POT":
+        if self._pressurise_stage == "PRESSURISE_POT":
             if not self._active_cmd:
                 print("[STARTUP] Pressurising pot")
                 self._active_cmd = create_and_queue_command(
@@ -133,7 +140,7 @@ class StartupOrchestrator:
                 print("[STARTUP] WARNING: forcing stop (timeout)")
                 self._pot_pressurise_open_s = elapsed
                 self._active_cmd = None
-                self._fill_state = "STOP_POT_PRESSURISE"
+                self._pressurise_stage = "STOP_POT_PRESSURISE"
                 return
 
             if self.executor.is_completed(self._active_cmd):
@@ -142,11 +149,11 @@ class StartupOrchestrator:
                     print(f"[STARTUP] Pot pressurised ({elapsed:.1f}s)")
                     self._pot_pressurise_open_s = elapsed
                     self._active_cmd = None
-                    self._fill_state = "STOP_POT_PRESSURISE"
+                    self._pressurise_stage = "STOP_POT_PRESSURISE"
             return
 
         # STEP 2: STOP PRESSURE
-        if self._fill_state == "STOP_POT_PRESSURISE":
+        if self._pressurise_stage == "STOP_POT_PRESSURISE":
             if not self._active_cmd:
                 self._active_cmd = create_and_queue_command(
                     name="pot.pressurise_stop",
@@ -156,13 +163,14 @@ class StartupOrchestrator:
 
             if self.executor.is_completed(self._active_cmd):
                 self._active_cmd = None
-                self._fill_state = "COMPLETE"
+                self._pressurise_stage = "COMPLETE"
 
         # STEP 3: COMPLETE
-        if self._fill_state == "COMPLETE":
+        if self._pressurise_stage == "COMPLETE":
             print("[STARTUP] Pressurise complete → LINE_PRIMING")
-            program_state.on_pot_filled()
-            self._fill_state = "DONE"
+            program_state.on_pressurised()
+
+            self._pressurise_stage = "DONE"
 
 
     # ─
@@ -203,7 +211,6 @@ class StartupOrchestrator:
     def _complete_pressurisation(self):
         mat = material_state_manager.state
         now = time.time()
-        program_state.on_pressurised()  # → LINE_PRIMING
         self._prime_start_ts = now
         current_kg = mat.current_pot_kg or 0.0
         self._prime_start_weight = current_kg

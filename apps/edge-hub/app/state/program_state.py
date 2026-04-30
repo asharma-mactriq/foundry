@@ -10,12 +10,10 @@ class ProgramPhase(str, Enum):
     STARTED       = "started"        # program.load sent, waiting ACK
     LOADED        = "loaded"         # program.load ACK received
     STARTUP       = "startup"        # startup.sequence sent
-    POT_FILLING   = "pot_filling"    # inlet open, watching weight rise
     PRESSURISING  = "pressurising"   # pot_air_in open (time-based)
     LINE_PRIMING  = "line_priming"   # dispense valve open, filling 5ft line
     READY         = "ready"          # fully primed, waiting for first gap
     RUNNING       = "running"        # dispensing on gaps
-    MID_REFILLING = "mid_refilling"  # mid-run pot refill from reservoir
     PAUSED        = "paused"
     STOPPED       = "stopped"
     ABORT         = "abort"
@@ -48,7 +46,6 @@ class ProgramState:
     # ── Queries ───────────────────────────────────────────────────
     def is_active(self):
         return self.phase in (
-            # ProgramPhase.POT_FILLING,
             ProgramPhase.PRESSURISING,
             ProgramPhase.LINE_PRIMING,
             ProgramPhase.STARTUP,
@@ -91,18 +88,8 @@ class ProgramState:
     # startup.sequence ACK done → startup_orchestrator.begin() takes over
     def on_startup_complete(self):
         # Do NOT transition to READY here anymore.
-        # startup_orchestrator.begin() calls begin_pot_filling() directly.
         # This method is kept as a hook in case command_executor needs it.
         pass
-
-    # # startup_orchestrator phase transitions
-    # def begin_pot_filling(self):
-    #     if self.phase == ProgramPhase.STARTUP:
-    #         self.set_phase(ProgramPhase.POT_FILLING, "pot_fill_start")
-
-    # def on_pot_filled(self):
-    #     if self.phase == ProgramPhase.POT_FILLING:
-    #         self.set_phase(ProgramPhase.PRESSURISING, "pot_fill_done")
 
     def on_pressurised(self):
         if self.phase == ProgramPhase.PRESSURISING:
