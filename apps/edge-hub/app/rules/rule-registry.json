@@ -2,10 +2,10 @@
 
 {
   "id": "dispense_on_gap",
-  "enabled": true,
+  "enabled": false,
   "priority": 190,
   "cooldown_ms": 200,
-  "condition": "program.phase == 'running' and machine.phase == 'REST_DISPENSE_EDGE' and material.line_primed == True and material.current_pot_kg > 0.3 and machine.gap == 1",
+  "condition": "program.phase in ['ready', 'running'] and machine.stable == True and material.line_primed == True and material.current_pot_kg > 0.3 and machine.gap == 1",
   "actions": [
     {
       "type": "command",
@@ -37,45 +37,5 @@
       }
     ],
     "meta": {"note": "Safety ceiling regardless of phase. 2.5 bar = well below fire extinguisher rating but safety margin from 3 bar supply"}
-  },
-
-  {
-    "id": "alert_reservoir_suspected_low",
-    "enabled": true,
-    "priority": 150,
-    "cooldown_ms": 60000,
-    "condition": "material.consecutive_failed_refills >= 1 and program.phase in ['running', 'mid_refilling']",
-    "actions": [
-      {
-        "type": "emit_alert",
-        "params": {
-          "level": "warning",
-          "message": "Refill yielded low gain — reservoir may be running low"
-        }
-      }
-    ],
-    "meta": {"note": "Based on outcome, not reservoir weight reading"}
-  },
-
-  {
-    "id": "stop_on_reservoir_confirmed_empty",
-    "enabled": true,
-    "priority": 220,
-    "cooldown_ms": 0,
-    "condition": "material.consecutive_failed_refills >= 2 and program.phase in ['running']",
-    "actions": [
-      {
-        "type": "command",
-        "params": {"name": "program.stop"}
-      },
-      {
-        "type": "emit_alert",
-        "params": {
-          "level": "critical",
-          "message": "Reservoir confirmed empty — 2 consecutive refills failed. Program stopped."
-        }
-      }
-    ],
-    "meta": {"note": "consecutive_failed_refills is tracked in program_engine, exposed via material_state"}
   }
 ]
