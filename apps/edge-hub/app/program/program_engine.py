@@ -149,6 +149,7 @@ class ProgramEngine:
 
         # self.mid_refill_orchestrator.reset()
         self._reset_pressure_state()
+        self._estimated_pressure_mpa = self.profile.pressure_high_mpa
 
         from app.orchestrators.startup_orchestrator import startup_orchestrator
         startup_orchestrator.reset()
@@ -251,13 +252,16 @@ class ProgramEngine:
 
         # Tick pressure model — must happen every tick regardless
         dispensing_active = getattr(mat, "dispensing_active", False)
-        self._update_pressure_model(now, dispensing_active)
+
+        if ps.phase in (ProgramPhase.RUNNING, ProgramPhase.READY):
+            self._update_pressure_model(now, dispensing_active)
+        # self._update_pressure_model(now, dispensing_active)
 
         # Step 1: Pressure maintenance — returns True if pot_air_in
         # is open or a command was just sent. Block everything else.
-        # if self._maintain_pressure(now, mat):
-        #     return
-        self._maintain_pressure(now, mat)
+        if self._maintain_pressure(now, mat):
+            return
+        # self._maintain_pressure(now, mat)
         # # Step 2: Mid-run refill — only in RUNNING
         # if ps.phase == ProgramPhase.RUNNING:
         #     if mat.current_pot_kg < self.profile.mid_refill_threshold_kg:
@@ -270,8 +274,9 @@ class ProgramEngine:
         #     return
         
 
-        print(f"[DEBUG] phase={ps.phase} event={ps.last_event}")
-
+        if ps.last_event:
+            print(f"[DEBUG] phase={ps.phase} event={ps.last_event}")
+            
         event = ps.last_event
 
         if event is None:
@@ -318,6 +323,21 @@ class ProgramEngine:
     # Returns False → caller may proceed with other commands
     # ──────────────────────────────────────────────────────────────
     def _maintain_pressure(self, now: float, mat) -> bool:
+        if not hasattr(self, "_pressure_last_fire_ts"):
+            self._pressure_last_fire_ts = 0
+
+        if not hasattr(self, "_pressure_pulse_end_ts"):
+            self._pressure_pulse_end_ts = 0
+
+        from app.state.program_state import program_state
+        from app.state.program_state import ProgramPhase
+
+        # 🔴 ADD THIS
+        if program_state.phase in (ProgramPhase.LINE_PRIMING, ProgramPhase.PRESSURISING):
+            print("[PRESSURE] blocked during line priming")
+            return False
+            
+
         from app.commands.helpers import create_and_queue_command
 
         p = self.profile
@@ -363,6 +383,12 @@ class ProgramEngine:
         if self._estimated_pressure_mpa >= p.pressure_low_mpa:
             return False
 
+        # debounce (VERY IMPORTANT)
+        if now - self._pressure_last_fire_ts < 20.0:
+            print("[PRESSURE] debounce active — skipping")
+            return False
+
+
         # Pressure below low threshold — fire top-up
         current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
         charge_rate = self._charge_rate_mpa_per_s(current_kg)
@@ -376,7 +402,12 @@ class ProgramEngine:
             f"firing top-up (deficit={deficit:.4f} MPa, "
             f"est {est_needed_s:.1f}s to reach {p.pressure_high_mpa} MPa)"
         )
+        # create_and_queue_command(name="pot.pressurise", payload={})
+
+
         create_and_queue_command(name="pot.pressurise", payload={})
+        self._pressure_last_fire_ts = now
+
         self._pressure_pulse_active = True
         self._pressure_stop_sent = False
         self._pressure_pulse_start_ts = now

@@ -96,6 +96,23 @@ class StartupOrchestrator:
 
         print("[STARTUP_ORCH] Begin → PRESSURISE_POT (fill disabled)")
 
+    def _adjust_pressure_after_prime(self, elapsed):
+        try:
+            import app.program.program_engine as program_module
+            if program_module.program_engine:
+                p = self.profile
+                drop = elapsed * p.pressure_dispense_bleed_mpa_per_s
+
+                program_module.program_engine._estimated_pressure_mpa = max(
+                    0.0,
+                    program_module.program_engine._estimated_pressure_mpa - drop
+                )
+
+                print(f"[STARTUP_ORCH] Adjusted pressure after prime (drop={drop:.4f})")
+
+        except Exception as e:
+            print(f"[STARTUP_ORCH] Pressure adjust failed: {e}")
+
     # ──────────────────────────────────────────────────────────────
     # Tick router
     # ──────────────────────────────────────────────────────────────
@@ -245,6 +262,26 @@ class StartupOrchestrator:
         # STEP 3: COMPLETE
         if self._pressurise_stage == "COMPLETE":
             print("[STARTUP] Pressurise complete → LINE_PRIMING")
+           
+
+            # 🔴 ADD THIS (CRITICAL FIX)
+            try:
+                import app.program.program_engine as program_module
+                from app.state.material_state import material_state_manager
+
+                mat = material_state_manager.state
+                current_kg = mat.current_pot_kg or self.profile.pressure_model_ref_kg
+
+                if program_module.program_engine:
+                    program_module.program_engine.seed_pressure(
+                        open_s=self._pot_pressurise_open_s,
+                        current_kg=current_kg
+                    )
+                    print("[STARTUP_ORCH] Seeded pressure model after pressurise")
+
+            except Exception as e:
+                print(f"[STARTUP_ORCH] Pressure seed failed: {e}")
+
             program_state.on_pressurised()
             print("[DEBUG] phase should now be LINE_PRIMING")
             self._pressurise_stage = "DONE"
@@ -335,6 +372,8 @@ class StartupOrchestrator:
                 self._prime_stop_sent = True
                 program_state.set_phase(ProgramPhase.READY, "line_primed")
 
+                self._adjust_pressure_after_prime(elapsed)
+
                 print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
                 material_state_manager.state.line_primed = True
@@ -369,6 +408,9 @@ class StartupOrchestrator:
 
                 program_state.set_phase(ProgramPhase.READY, "line_primed")
 
+                self._adjust_pressure_after_prime(elapsed)
+
+
                 print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
                 material_state_manager.state.line_primed = True
@@ -396,6 +438,8 @@ class StartupOrchestrator:
 
                 program_state.set_phase(ProgramPhase.READY, "line_primed")
 
+                self._adjust_pressure_after_prime(elapsed)
+
                 print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
                 material_state_manager.state.line_primed = True
@@ -420,6 +464,8 @@ class StartupOrchestrator:
                 self._prime_stop_sent = True
 
                 program_state.set_phase(ProgramPhase.READY, "line_primed")
+
+                self._adjust_pressure_after_prime(elapsed)
 
                 print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
