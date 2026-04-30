@@ -310,8 +310,9 @@ class MidRefillOrchestrator:
         during REPRESSURISE_POT so it starts with an accurate estimate.
         """
         try:
-            from app.program.program_engine import program_engine
-            if program_engine is not None:
-                program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
+            import app.program.program_engine as program_module
+
+            if program_module.program_engine is not None:
+                program_module.program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
         except Exception as e:
             print(f"[MID_REFILL] Could not seed pressure model: {e}")

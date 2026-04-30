@@ -9,8 +9,8 @@ from app.state.system_state import system_state, SystemPhase
 from app.core import clock
 from app.modes.mode_manager import mode_manager
 from app.modes.mode_types import ProcessMode
-from app.program.program_engine import program_engine
-
+# from app.program.program_engine import program_engine
+import app.program.program_engine as program_module
 class StateOrchestrator:
 
     def __init__(self):
@@ -34,8 +34,8 @@ class StateOrchestrator:
         ps = program_state
 
         # 🔴 ALWAYS run program engine first
-        if program_engine:
-            program_engine.on_event(ms, ps)
+        if program_module.program_engine:
+            program_module.program_engine.on_event(ms, ps)
 
         if ms.is_dispense_window():
             pid = ps.current_pass
@@ -49,14 +49,14 @@ class StateOrchestrator:
                 f"fired={ms.dispense_fired_for_gap}"
             )
 
-            allowed = program_engine.should_dispense(pid, ms)
+            allowed = program_module.program_engine.should_dispense(pid, ms)
 
             print(f"[REALTIME DECISION] allowed={allowed}")
 
             if allowed:
                 print("[REALTIME] FIRING DISPENSE")
 
-                open_ms = program_engine.get_dispense_plan(pid)
+                open_ms = program_module.program_engine.get_dispense_plan(pid)
 
                 self.executor.send_command({
                     "name": "dispense.open",

@@ -218,9 +218,9 @@ class CommandExecutor:
         if event == "command.started":
             command_store.update_status(cmd_id, "started", data)
 
-            from app.program.program_engine import program_engine
-            if program_engine and cmd_name == "refill.start":
-                program_engine.refill_state = "RUNNING"
+            import app.program.program_engine as program_module
+            if program_module.program_engine and cmd_name == "refill.start":
+                program_module.program_engine.refill_state = "RUNNING"
                 print("[EXECUTOR] Refill workflow running")
 
             return
@@ -231,21 +231,21 @@ class CommandExecutor:
 
         command_store.update_status(cmd_id, "completed", data)
 
-        from app.program.program_engine import program_engine
+        import app.program.program_engine as program_module
 
-        if program_engine and cmd_name == "refill.start":
-            program_engine.refill_state = "IDLE"
+        if program_module.program_engine and cmd_name == "refill.start":
+            program_module.program_engine.refill_state = "IDLE"
             print("[EXECUTOR] Refill workflow completed → state reset")
 
         if cmd_name == "program.load":
             program_state.on_loaded()
 
             # 🔴 IMMEDIATE STARTUP TRIGGER
-            from app.program.program_engine import program_engine
+            import app.program.program_engine as program_module
             from app.state.machine_state import machine_state_manager
 
-            if program_engine:
-                program_engine.on_event(
+            if program_module.program_engine:
+                program_module.program_engine.on_event(
                     machine_state_manager.state,
                     program_state
                 )

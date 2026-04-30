@@ -5,7 +5,7 @@ from app.core.telemetry_validator import TelemetryValidator
 from app.orchestrators.state_orchestrator import state_orchestrator
 from app.services.rule_engine import get_rule_engine
 from app.state.material_state import material_state_manager
-from app.program.program_engine import program_engine
+import app.program.program_engine as program_module
 from app.core import clock
 
 class TelemetryService:

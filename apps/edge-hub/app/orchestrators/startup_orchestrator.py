@@ -276,9 +276,9 @@ class StartupOrchestrator:
     def _seed_program_engine_pressure(self, open_s: float, current_kg: float):
         """Notify program_engine of how much pot_air_in time was banked."""
         try:
-            from app.program.program_engine import program_engine
-            if program_engine is not None:
-                program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
+            import app.program.program_engine as program_module
+            if program_module.program_engine is not None:
+                program_module.program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
         except Exception as e:
             print(f"[STARTUP_ORCH] Could not seed pressure model: {e}")
 
@@ -471,19 +471,19 @@ class StartupOrchestrator:
           → below 0.28 → maintenance pulse fires as soon as READY
         """
         try:
-            from app.program.program_engine import program_engine
-            if program_engine is not None:
+            import app.program.program_engine as program_module
+            if program_module.program_engine is not None:
                 p = self.profile
                 drop = prime_elapsed_s * p.pressure_dispense_bleed_mpa_per_s
-                program_engine._estimated_pressure_mpa = max(
+                program_module.program_engine._estimated_pressure_mpa = max(
                     0.0,
-                    program_engine._estimated_pressure_mpa - drop
+                    program_module.program_engine._estimated_pressure_mpa - drop
                 )
                 print(
                     f"[STARTUP_ORCH] Pressure re-seeded after prime — "
                     f"prime={prime_elapsed_s:.1f}s "
                     f"drop={drop:.4f} MPa "
-                    f"estimated={program_engine._estimated_pressure_mpa:.4f} MPa"
+                    f"estimated={program_module.program_engine._estimated_pressure_mpa:.4f} MPa"
                 )
         except Exception as e:
             print(f"[STARTUP_ORCH] Could not re-seed pressure after prime: {e}")
