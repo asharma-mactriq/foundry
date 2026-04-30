@@ -133,9 +133,9 @@ class TelemetryValidator:
         clean["pot_min_kg"] = float(
             raw.get("pot_min_kg", last_valid.get("pot_min_kg", 0.4))
         )
-        clean["res_min_kg"] = float(
-            raw.get("res_min_kg", last_valid.get("res_min_kg", 2.0))
-        )
+        # clean["res_min_kg"] = float(
+        #     raw.get("res_min_kg", last_valid.get("res_min_kg", 2.0))
+        # )
 
         # ─────────────────────────────────────
         # 7. Validity Flags
