@@ -56,6 +56,13 @@ class StateOrchestrator:
         self._evaluate_rules(telemetry, ms, ps, mat)
 
         # 5. Program not active — nothing else to do
+        # if not ps.is_active():
+        #     return ms, ps
+        
+        # 🔴 ALWAYS run program engine first
+        if program_engine:
+            program_engine.on_event(ms, ps)
+
         if not ps.is_active():
             return ms, ps
 

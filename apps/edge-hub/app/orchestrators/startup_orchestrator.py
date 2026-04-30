@@ -204,26 +204,42 @@ class StartupOrchestrator:
                 print(f"[STARTUP] Pot pressurised ({elapsed:.1f}s)")
                 self._pot_pressurise_open_s = elapsed
                 self._active_cmd = None
+                print("[DEBUG] cleared active_cmd")
                 self._pressurise_stage = "STOP_POT_PRESSURISE"
+                return
             return
 
-        # STEP 2: STOP PRESSURE
-        if self._pressurise_stage == "STOP_POT_PRESSURISE":
-            if not self._active_cmd:
-                self._active_cmd = create_and_queue_command(
-                    name="pot.pressurise_stop",
-                    payload={}
-                )
-                return
+        # # STEP 2: STOP PRESSURE
+        # if self._pressurise_stage == "STOP_POT_PRESSURISE":
+        #     if not self._active_cmd:
+        #         self._active_cmd = create_and_queue_command(
+        #             name="pot.pressurise_stop",
+        #             payload={}
+        #         )
+        #         return
 
-            # ✅ NO EXECUTOR DEPENDENCY
+        #     # ✅ NO EXECUTOR DEPENDENCY
+        #     self._active_cmd = None
+        #     self._pressurise_stage = "COMPLETE"
+
+        if self._pressurise_stage == "STOP_POT_PRESSURISE":
+            print("[STARTUP] Sending pressurise_stop")
+
+            create_and_queue_command(
+                name="pot.pressurise_stop",
+                payload={}
+            )
+
+            # 🔴 DO NOT WAIT
             self._active_cmd = None
             self._pressurise_stage = "COMPLETE"
+            return
 
         # STEP 3: COMPLETE
         if self._pressurise_stage == "COMPLETE":
             print("[STARTUP] Pressurise complete → LINE_PRIMING")
             program_state.on_pressurised()
+            print("[DEBUG] phase should now be LINE_PRIMING")
             self._pressurise_stage = "DONE"
 
 

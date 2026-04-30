@@ -83,7 +83,7 @@ class ProgramState:
     # begin startup.sequence
     def begin_startup(self):
         if self.phase == ProgramPhase.LOADED:
-            self.set_phase(ProgramPhase.STARTUP, "startup_begin")
+            self.set_phase(ProgramPhase.PRESSURISING, "startup_begin")
 
     # startup.sequence ACK done → startup_orchestrator.begin() takes over
     def on_startup_complete(self):

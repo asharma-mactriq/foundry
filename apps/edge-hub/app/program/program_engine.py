@@ -192,6 +192,13 @@ class ProgramEngine:
         if ps.phase == ProgramPhase.STARTED:
             return
 
+        # 🔴 STARTUP TRIGGER (critical)
+        if ps.phase == ProgramPhase.LOADED:
+            from app.orchestrators.startup_orchestrator import startup_orchestrator
+            print("[PROGRAM_ENGINE] LOADED → starting startup orchestrator")
+            startup_orchestrator.begin(self.profile)
+            return
+
         if ps.phase in (
             ProgramPhase.PRESSURISING,
             ProgramPhase.LINE_PRIMING,
