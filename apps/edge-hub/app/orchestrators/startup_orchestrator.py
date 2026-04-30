@@ -136,7 +136,15 @@ class StartupOrchestrator:
             self._handle_line_priming(mat)
 
         elif ps.phase == ProgramPhase.READY:
+
             print("[STARTUP_ORCH] READY — control returned to ProgramEngine")
+            from app.modes.mode_manager import mode_manager
+            from app.modes.mode_types import OperationMode, ProcessMode
+
+            mode_manager.set_operation(OperationMode.auto)
+            mode_manager.set_process(ProcessMode.tracking)
+
+            print("[STARTUP_ORCH] Modes set → auto / tracking")
             return
 
     # def _handle_pressurisation(self, mat):

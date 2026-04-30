@@ -37,33 +37,33 @@ class StateOrchestrator:
         if program_module.program_engine:
             program_module.program_engine.on_event(ms, ps)
 
-        if ms.is_dispense_window():
-            pid = ps.current_pass
+        # if ms.is_dispense_window():
+        #     pid = ps.current_pass
 
-            print(
-                f"[REALTIME DEBUG] "
-                f"pid={pid} "
-                f"phase={ps.phase} "
-                f"stable={ms.plate_stable} "
-                f"gap={ms.gap} "
-                f"fired={ms.dispense_fired_for_gap}"
-            )
+        #     print(
+        #         f"[REALTIME DEBUG] "
+        #         f"pid={pid} "
+        #         f"phase={ps.phase} "
+        #         f"stable={ms.plate_stable} "
+        #         f"gap={ms.gap} "
+        #         f"fired={ms.dispense_fired_for_gap}"
+        #     )
 
-            allowed = program_module.program_engine.should_dispense(pid, ms)
+        #     allowed = program_module.program_engine.should_dispense(pid, ms)
 
-            print(f"[REALTIME DECISION] allowed={allowed}")
+        #     print(f"[REALTIME DECISION] allowed={allowed}")
 
-            if allowed:
-                print("[REALTIME] FIRING DISPENSE")
+        #     if allowed:
+        #         print("[REALTIME] FIRING DISPENSE")
 
-                open_ms = program_module.program_engine.get_dispense_plan(pid)
+        #         open_ms = program_module.program_engine.get_dispense_plan(pid)
 
-                self.executor.send_command({
-                    "name": "dispense.open",
-                    "payload": {"open_ms": open_ms}
-                })
+        #         self.executor.send_command({
+        #             "name": "dispense.open",
+        #             "payload": {"open_ms": open_ms}
+        #         })
 
-                ms.dispense_fired_for_gap = True
+        #         ms.dispense_fired_for_gap = True
 
         # ── Telemetry watchdog ────────────────────────────────────
         if ms.last_update_ts is not None:

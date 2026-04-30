@@ -282,9 +282,18 @@ class ProgramEngine:
         if event is None:
             return
 
+        # if self.executor.is_busy():
+        #     print("[ENGINE] executor busy — deferring event")
+        #     return
+
         if self.executor.is_busy():
-            print("[ENGINE] executor busy — deferring event")
-            return
+            current = getattr(self.executor, "current_command", None)
+
+            if current and current.get("name") == "pot.pressurise":
+                print("[ENGINE] executor busy with pressure — allowing dispense")
+            else:
+                print("[ENGINE] executor busy — deferring event")
+                return
 
         # process event
         if event == "pass_enter":
@@ -323,11 +332,35 @@ class ProgramEngine:
     # Returns False → caller may proceed with other commands
     # ──────────────────────────────────────────────────────────────
     def _maintain_pressure(self, now: float, mat) -> bool:
+
+        from app.state.machine_state import machine_state_manager
+
+        machine = machine_state_manager.state
+
+        # 🔴 If gap appears during pulse → force stop
+        if machine.gap == 1 and self._pressure_pulse_active:
+            from app.commands.helpers import create_and_queue_command
+
+            print("[PRESSURE] Gap detected → stopping pressure immediately")
+
+            create_and_queue_command(name="pot.pressurise_stop", payload={})
+            self._pressure_pulse_active = False
+            self._pressure_stop_sent = False
+            self._pressure_pulse_end_ts = now
+
+            return False
+
+        # 🔴 THIS IS THE MISSING LINE
+        if machine.gap == 1:
+            return False
+        
+
         if not hasattr(self, "_pressure_last_fire_ts"):
             self._pressure_last_fire_ts = 0
 
         if not hasattr(self, "_pressure_pulse_end_ts"):
             self._pressure_pulse_end_ts = 0
+
 
         from app.state.program_state import program_state
         from app.state.program_state import ProgramPhase
@@ -380,14 +413,18 @@ class ProgramEngine:
         if now - self._pressure_pulse_end_ts < p.pressure_top_up_cooldown_s:
             return False
 
-        if self._estimated_pressure_mpa >= p.pressure_low_mpa:
-            return False
+        # if self._estimated_pressure_mpa >= p.pressure_low_mpa:
+        #     return False
 
-        # debounce (VERY IMPORTANT)
-        if now - self._pressure_last_fire_ts < 20.0:
-            print("[PRESSURE] debounce active — skipping")
-            return False
+        # # debounce (VERY IMPORTANT)
+        # if now - self._pressure_last_fire_ts < 20.0:
+        #     print("[PRESSURE] debounce active — skipping")
+        #     return False
 
+        TOP_UP_INTERVAL = 30.0  # seconds
+
+        if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
+            return False
 
         # Pressure below low threshold — fire top-up
         current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
@@ -542,6 +579,11 @@ class ProgramEngine:
     #     print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
 
     def _handle_pass_stable(self, program, machine):
+
+        if machine.gap != 1:
+            print("[DISPENSE] skipped: lost gap before execution")
+            return
+
         pid = program.current_pass
 
         print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
