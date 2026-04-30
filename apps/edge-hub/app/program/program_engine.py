@@ -34,12 +34,12 @@ class ProgramEngine:
         self.executor = executor
         self.config: dict = {}
         self.profile: PaintProfile = DEFAULT_PROFILE
-
+        self._ready_initialized = False
         self._skip_n = 3
         self._last_weight = None
         self._window_drop_sum = 0.0
         self._pass_window = 0
-
+        self._prev_gap = 0
 
         self._reset_pressure_state()
 
@@ -142,7 +142,7 @@ class ProgramEngine:
     def start_program(self, config: dict):
         print(f"[PROGRAM_ENGINE] START PROGRAM config={config}")
         self.config = config
-
+        self._ready_initialized = False
         profile_name = config.get("paint_profile")
         self.profile = get_profile(profile_name)
 
@@ -206,13 +206,40 @@ class ProgramEngine:
             from app.orchestrators.startup_orchestrator import startup_orchestrator
             startup_orchestrator.process()
             return
-
-        if self.executor.is_busy():
-            return
         
+# 🔴 CRITICAL FIX — reset gap memory when entering READY
+
         # if ps.phase == ProgramPhase.MID_REFILLING:
         #     self.mid_refill_orchestrator.process()
         #     return
+
+
+        gap = getattr(machine, "gap", 0)
+        if ps.phase == ProgramPhase.READY and not self._ready_initialized:
+            print("[ENGINE] READY entered — resetting gap state")
+            self._prev_gap = 0
+            self._ready_initialized = True
+
+        # if not hasattr(self, "_prev_gap"):
+        #     self._prev_gap = 0
+
+        if ps.phase in (ProgramPhase.READY, ProgramPhase.RUNNING):
+
+            if gap == 1 and self._prev_gap == 0:
+                ps.new_pass()
+
+            elif gap == 1 and self._prev_gap == 1:
+                if ps.current_pass > 0:
+                    ps.mark_stable(ps.current_pass)
+
+            elif gap == 0 and self._prev_gap == 1:
+                if ps.current_pass > 0:
+                    ps.mark_exit(ps.current_pass)
+
+        self._prev_gap = gap
+
+        if self.executor.is_busy():
+            return
 
         if ps.phase not in (ProgramPhase.READY, ProgramPhase.RUNNING):
             return
