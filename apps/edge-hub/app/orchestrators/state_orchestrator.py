@@ -43,7 +43,7 @@ class StateOrchestrator:
         # 2. Material state
         mat = material_orchestrator.process_telemetry(telemetry)
         
-        startup_orchestrator.process()
+        # startup_orchestrator.process()
 
         # 3. System startup (booting → init → ready)
         self._process_system_startup()
@@ -135,7 +135,7 @@ class StateOrchestrator:
                 #     ps.last_event = "pass_exit"
                 print(f"[STATE] Pass {pid} EXIT")
 
-        ms.last_event = None
+        # ms.last_event = None
 
     # ──────────────────────────────────────────────────────────────
     def _evaluate_rules(self, raw, ms, ps, mat):

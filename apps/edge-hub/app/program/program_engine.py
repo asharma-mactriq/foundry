@@ -229,8 +229,8 @@ class ProgramEngine:
 
         # Step 3: Gap / dispense events
         event = ps.last_event
+        print(f"[DEBUG] phase={ps.phase} event={ps.last_event}")
         ps.last_event = None
-
         if event == "pass_enter":
             self._handle_pass_enter(ps)
         elif event == "pass_stable":
