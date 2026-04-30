@@ -48,13 +48,13 @@ class ProgramState:
     # ── Queries ───────────────────────────────────────────────────
     def is_active(self):
         return self.phase in (
-            ProgramPhase.POT_FILLING,
+            # ProgramPhase.POT_FILLING,
             ProgramPhase.PRESSURISING,
             ProgramPhase.LINE_PRIMING,
             ProgramPhase.STARTUP,
             ProgramPhase.READY,
             ProgramPhase.RUNNING,
-            ProgramPhase.MID_REFILLING,
+            # ProgramPhase.MID_REFILLING,
         )
 
     # ── Phase transitions ─────────────────────────────────────────
@@ -95,14 +95,14 @@ class ProgramState:
         # This method is kept as a hook in case command_executor needs it.
         pass
 
-    # startup_orchestrator phase transitions
-    def begin_pot_filling(self):
-        if self.phase == ProgramPhase.STARTUP:
-            self.set_phase(ProgramPhase.POT_FILLING, "pot_fill_start")
+    # # startup_orchestrator phase transitions
+    # def begin_pot_filling(self):
+    #     if self.phase == ProgramPhase.STARTUP:
+    #         self.set_phase(ProgramPhase.POT_FILLING, "pot_fill_start")
 
-    def on_pot_filled(self):
-        if self.phase == ProgramPhase.POT_FILLING:
-            self.set_phase(ProgramPhase.PRESSURISING, "pot_fill_done")
+    # def on_pot_filled(self):
+    #     if self.phase == ProgramPhase.POT_FILLING:
+    #         self.set_phase(ProgramPhase.PRESSURISING, "pot_fill_done")
 
     def on_pressurised(self):
         if self.phase == ProgramPhase.PRESSURISING:
@@ -113,13 +113,13 @@ class ProgramState:
             self.set_phase(ProgramPhase.READY, "line_primed")
 
     # Mid-run refill
-    def begin_mid_refill(self):
-        if self.phase == ProgramPhase.RUNNING:
-            self.set_phase(ProgramPhase.MID_REFILLING, "mid_refill_start")
+    # def begin_mid_refill(self):
+    #     if self.phase == ProgramPhase.RUNNING:
+    #         self.set_phase(ProgramPhase.MID_REFILLING, "mid_refill_start")
 
-    def on_mid_refill_done(self):
-        if self.phase == ProgramPhase.MID_REFILLING:
-            self.set_phase(ProgramPhase.RUNNING, "mid_refill_done")
+    # def on_mid_refill_done(self):
+    #     if self.phase == ProgramPhase.MID_REFILLING:
+    #         self.set_phase(ProgramPhase.RUNNING, "mid_refill_done")
 
     # ── Pass tracking ─────────────────────────────────────────────
     def new_pass(self):

@@ -10,18 +10,7 @@ from app.config.paint_profile import PaintProfile, DEFAULT_PROFILE
 class StartupOrchestrator:
     """
     Startup sequence:
-        POT_FILLING → PRESSURISING → LINE_PRIMING → READY
-
-    Fill sub-states:
-        OPEN_VENT (5s min)
-        → PRESSURISE_RES
-        → OPEN_INLET  (fill until 90% of target weight)
-        → CLOSE_INLET
-        → CLOSE_RES
-        → CLOSE_VENT
-        → PRESSURISE_POT (profile.pressure_charge_time_s min)
-        → STOP_POT_PRESSURISE
-        → COMPLETE → on_pot_filled() → PRESSURISING (passthrough) → LINE_PRIMING
+        PRESSURISE_POT → PRESSURISING → LINE_PRIMING → READY
 
     All timing from PaintProfile.
     """
@@ -35,13 +24,6 @@ class StartupOrchestrator:
     def _reset_state(self):
         self._fill_state = "IDLE"
         self._active_cmd = None
-
-        # Fill tracking
-        self._fill_phase_start_ts = 0.0
-        self._fill_phase_start_weight = 0.0
-        self._vent_open_ts = 0.0
-        self._pot_pressurise_ts = 0.0
-        self._settle_start_ts = 0.0
 
         # CHANGE 1: track actual pot pressurise duration so we can
         # seed program_engine's pressure model accurately on completion
@@ -67,42 +49,51 @@ class StartupOrchestrator:
         self._reset_state()
         print("[STARTUP_ORCH] Reset")
 
+    # def begin(self, profile: PaintProfile = None):
+    #     if profile:
+    #         self.profile = profile
+
+    #     mat = material_state_manager.state
+    #     now = time.time()
+
+    #     current_kg = mat.current_pot_kg or 0.0
+    #     # target_kg = self.profile.pot_fill_target_kg
+
+    #     # fill_threshold = target_kg * 0.9
+    #     # if current_kg >= fill_threshold:
+    #     #     from app.commands.helpers import create_and_queue_command
+    #     #     print(
+    #     #         f"[STARTUP_ORCH] Pot already at {current_kg:.3f}kg "
+    #     #         f"(>= 90% target {fill_threshold:.3f}kg) — skipping fill, "
+    #     #         f"going straight to pot pressurise"
+    #     #     )
+    #     #     program_state.begin_pot_filling()
+    #     #     self._fill_state = "PRESSURISE_POT"
+    #     #     return
+
+    #     # self._fill_phase_start_ts = now
+    #     # self._fill_phase_start_weight = current_kg
+
+    #     # program_state.begin_pot_filling()
+    #     # self._fill_state = "OPEN_VENT"
+
+    #     if self.TEST_MODE:
+    #         print("[STARTUP_ORCH] TEST MODE ENABLED — bypassing sensors")
+
+    #     # print(
+    #     #     f"[STARTUP_ORCH] begin() — profile={self.profile.name} "
+    #     #     f"pot_now={current_kg:.3f}kg "
+    #     #     f"target={target_kg}kg (fill to 90% = {fill_threshold:.3f}kg)"
+    #     )
+
     def begin(self, profile: PaintProfile = None):
         if profile:
             self.profile = profile
 
-        mat = material_state_manager.state
-        now = time.time()
-
-        current_kg = mat.current_pot_kg or 0.0
-        target_kg = self.profile.pot_fill_target_kg
-
-        fill_threshold = target_kg * 0.9
-        if current_kg >= fill_threshold:
-            from app.commands.helpers import create_and_queue_command
-            print(
-                f"[STARTUP_ORCH] Pot already at {current_kg:.3f}kg "
-                f"(>= 90% target {fill_threshold:.3f}kg) — skipping fill, "
-                f"going straight to pot pressurise"
-            )
-            program_state.begin_pot_filling()
-            self._fill_state = "PRESSURISE_POT"
-            return
-
-        self._fill_phase_start_ts = now
-        self._fill_phase_start_weight = current_kg
-
         program_state.begin_pot_filling()
-        self._fill_state = "OPEN_VENT"
+        self._fill_state = "PRESSURISE_POT"
 
-        if self.TEST_MODE:
-            print("[STARTUP_ORCH] TEST MODE ENABLED — bypassing sensors")
-
-        print(
-            f"[STARTUP_ORCH] begin() — profile={self.profile.name} "
-            f"pot_now={current_kg:.3f}kg "
-            f"target={target_kg}kg (fill to 90% = {fill_threshold:.3f}kg)"
-        )
+        print("[STARTUP_ORCH] Begin → PRESSURISE_POT (fill disabled)")
 
     # ──────────────────────────────────────────────────────────────
     # Tick router
@@ -114,160 +105,20 @@ class StartupOrchestrator:
 
         if ps.phase == ProgramPhase.POT_FILLING:
             self._handle_pot_filling(mat)
-        elif ps.phase == ProgramPhase.PRESSURISING:
+        if ps.phase == ProgramPhase.PRESSURISING:
             self._handle_pressurising(ms)
         elif ps.phase == ProgramPhase.LINE_PRIMING:
             self._handle_line_priming(mat)
 
-    # ──────────────────────────────────────────────────────────────
-    # PHASE 1: POT FILLING
-    # ──────────────────────────────────────────────────────────────
     def _handle_pot_filling(self, mat):
         from app.commands.helpers import create_and_queue_command
-
         p = self.profile
         now = time.time()
-        current_kg = mat.current_pot_kg or 0.0
-        target_kg = p.pot_fill_target_kg
-        fill_target_kg = target_kg * 0.9
 
-        # ── 1. Open pot vent — hold for at least 5s ──────────────
-        if self._fill_state == "OPEN_VENT":
-            if not self._active_cmd:
-                print("[STARTUP_ORCH] Opening pot vent (min 5s)")
-                self._active_cmd = create_and_queue_command(
-                    name="pot.vent_open",
-                    payload={}
-                )
-                self._vent_open_ts = now
-                return
-
-            if self.executor.is_completed(self._active_cmd):
-                vent_elapsed = now - self._vent_open_ts
-                if vent_elapsed >= 5.0:
-                    print(f"[STARTUP_ORCH] Pot vent open for {vent_elapsed:.1f}s → pressurising reservoir")
-                    self._active_cmd = None
-                    self._fill_state = "PRESSURISE_RES"
-            return
-
-        # ── 2. Pressurise reservoir ───────────────────────────────
-        if self._fill_state == "PRESSURISE_RES":
-            if not self._active_cmd:
-                print("[STARTUP_ORCH] Pressurising reservoir")
-                self._active_cmd = create_and_queue_command(
-                    name="res.pressurise",
-                    payload={"open_ms": int(p.pressurise_open_s * 1000)}
-                )
-                return
-
-            if self.executor.is_completed(self._active_cmd):
-                self._active_cmd = None
-                self._fill_phase_start_ts = now
-                self._fill_phase_start_weight = current_kg
-                self._fill_state = "OPEN_INLET"
-
-        # ── 3. Open inlet ─────────────────────────────────────────
-        if self._fill_state == "OPEN_INLET":
-            if not self._active_cmd:
-                print(
-                    f"[STARTUP_ORCH] Opening paint inlet "
-                    f"(filling to 90% = {fill_target_kg:.3f}kg)"
-                )
-                self._active_cmd = create_and_queue_command(
-                    name="pot.fill_start",
-                    payload={"target_kg": fill_target_kg}
-                )
-                return
-
-            if self.executor.is_completed(self._active_cmd):
-                gained = current_kg - self._fill_phase_start_weight
-                elapsed = now - self._fill_phase_start_ts
-
-                print(
-                    f"[STARTUP_ORCH] Filling: {current_kg:.3f}kg "
-                    f"/ {fill_target_kg:.3f}kg "
-                    f"(+{gained:.3f}kg in {elapsed:.0f}s)"
-                )
-
-                if self.TEST_MODE and elapsed > 3:
-                    print("[STARTUP_ORCH] TEST MODE — forcing fill complete")
-                    self._active_cmd = None
-                    self._fill_state = "CLOSE_INLET"
-                    return
-
-                if current_kg >= fill_target_kg:
-                    print(
-                        f"[STARTUP_ORCH] 90% target reached "
-                        f"({current_kg:.3f}kg >= {fill_target_kg:.3f}kg)"
-                    )
-                    self._active_cmd = None
-                    self._fill_state = "CLOSE_INLET"
-                    return
-
-                if elapsed > p.pot_fill_total_timeout_s:
-                    print(
-                        f"[STARTUP_ORCH] Fill timeout after {elapsed:.0f}s "
-                        f"({current_kg:.3f}kg) — closing inlet"
-                    )
-                    self._active_cmd = None
-                    self._fill_state = "CLOSE_INLET"
-                    return
-
-            return
-
-        # ── 4. Close inlet ────────────────────────────────────────
-        if self._fill_state == "CLOSE_INLET":
-            if not self._active_cmd:
-                print("[STARTUP_ORCH] Closing paint inlet")
-                self._active_cmd = create_and_queue_command(
-                    name="pot.fill_stop",
-                    payload={}
-                )
-                return
-
-            if self.executor.is_completed(self._active_cmd):
-                self._active_cmd = None
-                self._fill_state = "CLOSE_RES"
-
-        # ── 5. Vent reservoir ─────────────────────────────────────
-        if self._fill_state == "CLOSE_RES":
-            if not self._active_cmd:
-                print("[STARTUP_ORCH] Venting reservoir")
-                self._active_cmd = create_and_queue_command(
-                    name="res.depressurise",
-                    payload={}
-                )
-                return
-
-            if self.executor.is_completed(self._active_cmd):
-                self._active_cmd = None
-                self._fill_state = "CLOSE_VENT"
-
-        # ── 6. Close pot vent ─────────────────────────────────────
-        if self._fill_state == "CLOSE_VENT":
-            if not self._active_cmd:
-                print("[STARTUP_ORCH] Closing pot vent")
-                self._active_cmd = create_and_queue_command(
-                    name="pot.vent_close",
-                    payload={}
-                )
-                return
-
-            if self.executor.is_completed(self._active_cmd):
-                self._active_cmd = None
-                self._pot_pressurise_ts = now
-                self._fill_state = "PRESSURISE_POT"
-
-        # ── 7. Pressurise pot ─────────────────────────────────────
-        # Hold open for at least pressure_charge_time_s (from profile).
-        # This is the reference time measured physically at ref_kg fill.
-        # We use this same value so the pressure model is seeded accurately.
+        # STEP 1: PRESSURISE POT
         if self._fill_state == "PRESSURISE_POT":
             if not self._active_cmd:
-                print(
-                    f"[STARTUP_ORCH] Pressurising pot "
-                    f"(target={p.pressure_charge_time_s}s)"
-                )
+                print("[STARTUP] Pressurising pot")
                 self._active_cmd = create_and_queue_command(
                     name="pot.pressurise",
                     payload={}
@@ -275,24 +126,26 @@ class StartupOrchestrator:
                 self._pot_pressurise_ts = now
                 return
 
+            elapsed = now - self._pot_pressurise_ts
+
+            # 🔴 SAFETY GUARD (ADD HERE)
+            if elapsed > p.pressure_charge_time_s + 5:
+                print("[STARTUP] WARNING: forcing stop (timeout)")
+                self._pot_pressurise_open_s = elapsed
+                self._active_cmd = None
+                self._fill_state = "STOP_POT_PRESSURISE"
+                return
+
             if self.executor.is_completed(self._active_cmd):
-                pot_pressurise_elapsed = now - self._pot_pressurise_ts
-                # CHANGE 2: use profile.pressure_charge_time_s as the hold
-                # target instead of hardcoded 5s — this is the measured time
-                # to reach pressure_high_mpa at full pot, so holding for this
-                # long guarantees we start at the top of the working range
-                if pot_pressurise_elapsed >= p.pressure_charge_time_s:
-                    print(
-                        f"[STARTUP_ORCH] Pot pressurised for "
-                        f"{pot_pressurise_elapsed:.1f}s → closing pot_air_in"
-                    )
-                    # CHANGE 3: record actual open duration for pressure seeding
-                    self._pot_pressurise_open_s = pot_pressurise_elapsed
+
+                if elapsed >= p.pressure_charge_time_s:
+                    print(f"[STARTUP] Pot pressurised ({elapsed:.1f}s)")
+                    self._pot_pressurise_open_s = elapsed
                     self._active_cmd = None
                     self._fill_state = "STOP_POT_PRESSURISE"
             return
 
-        # ── 8. Close pot_air_in ───────────────────────────────────
+        # STEP 2: STOP PRESSURE
         if self._fill_state == "STOP_POT_PRESSURISE":
             if not self._active_cmd:
                 self._active_cmd = create_and_queue_command(
@@ -305,13 +158,17 @@ class StartupOrchestrator:
                 self._active_cmd = None
                 self._fill_state = "COMPLETE"
 
-        # ── 9. Complete ───────────────────────────────────────────
+        # STEP 3: COMPLETE
         if self._fill_state == "COMPLETE":
-            print("[STARTUP_ORCH] Fill + pressurise complete → LINE_PRIMING")
-            program_state.on_pot_filled()   # → PRESSURISING
+            print("[STARTUP] Pressurise complete → LINE_PRIMING")
+            program_state.on_pot_filled()
             self._fill_state = "DONE"
 
-    # ──────────────────────────────────────────────────────────────
+
+    # ─
+    # 
+    # 
+    # ─────────────────────────────────────────────────────────────
     # PHASE 2: PRESSURISING — passthrough
     # Pot is already pressurised inside the fill sequence.
     # Just seed the pressure model and transition to LINE_PRIMING.

@@ -5,13 +5,8 @@ import time
 from app.state.program_state import program_state, ProgramPhase
 from app.state.material_state import material_state_manager
 from app.services.command_executor import CommandExecutor
-from app.services.rule_engine import get_rule_engine
 from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
-from app.orchestrators.mid_refill_orchestrator import MidRefillOrchestrator
 
-from app.program.strategies.base_strategy import DispenseContext
-from app.program.strategies.time_based import TimeBasedStrategy
-from app.program.strategies.gravimetric import GravimetricStrategy
 
 
 class ProgramEngine:
@@ -19,8 +14,8 @@ class ProgramEngine:
     Drives program lifecycle:
       start_program() → STARTED → LOADED
           → startup_orchestrator.begin() takes over →
-      POT_FILLING → PRESSURISING → LINE_PRIMING → READY → RUNNING
-          ↕ MID_REFILLING (transparent, returns to RUNNING)
+     PRESSURISING → LINE_PRIMING → READY → RUNNING
+
 
     Pressure model — physical basis:
       Working range:        0.28 – 0.35 MPa
@@ -33,24 +28,18 @@ class ProgramEngine:
         Dispense: 1.4s to bleed 0.35 → 0.28 during active dispense
         Top-up from 0.28 → 0.35: ~1.8s of pot_air_in
 
-      Strategy:
-        Track estimated_pressure_mpa each tick.
-        Apply idle or dispense bleed each tick depending on solenoid state.
-        Apply charge rate when pot_air_in is open.
-        Fire top-up pulse when estimate < pressure_low_mpa.
-        Stop pulse when estimate >= pressure_high_mpa OR max pulse time exceeded.
-        Block all other commands while pot_air_in is open.
     """
 
     def __init__(self, executor: CommandExecutor):
         self.executor = executor
-        self.rule_engine = get_rule_engine(executor=executor)
         self.config: dict = {}
         self.profile: PaintProfile = DEFAULT_PROFILE
 
-        self._startup_sent = False
-        self.mid_refill_orchestrator = MidRefillOrchestrator(executor)
-        self.strategy = None
+        self._skip_n = 3
+        self._last_weight = None
+        self._window_drop_sum = 0.0
+        self._pass_window = 0
+
 
         self._reset_pressure_state()
 
@@ -157,7 +146,7 @@ class ProgramEngine:
         profile_name = config.get("paint_profile")
         self.profile = get_profile(profile_name)
 
-        self.mid_refill_orchestrator.reset()
+        # self.mid_refill_orchestrator.reset()
         self._reset_pressure_state()
 
         from app.orchestrators.startup_orchestrator import startup_orchestrator
@@ -206,7 +195,6 @@ class ProgramEngine:
             return
 
         if ps.phase in (
-            ProgramPhase.POT_FILLING,
             ProgramPhase.PRESSURISING,
             ProgramPhase.LINE_PRIMING,
         ):
@@ -214,9 +202,9 @@ class ProgramEngine:
             startup_orchestrator.process()
             return
 
-        if ps.phase == ProgramPhase.MID_REFILLING:
-            self.mid_refill_orchestrator.process()
-            return
+        # if ps.phase == ProgramPhase.MID_REFILLING:
+        #     self.mid_refill_orchestrator.process()
+        #     return
 
         if ps.phase not in (ProgramPhase.READY, ProgramPhase.RUNNING):
             return
@@ -233,11 +221,11 @@ class ProgramEngine:
         if self._maintain_pressure(now, mat):
             return
 
-        # Step 2: Mid-run refill — only in RUNNING
-        if ps.phase == ProgramPhase.RUNNING:
-            if mat.current_pot_kg < self.profile.mid_refill_threshold_kg:
-                self.mid_refill_orchestrator.begin(self.profile)
-                return
+        # # Step 2: Mid-run refill — only in RUNNING
+        # if ps.phase == ProgramPhase.RUNNING:
+        #     if mat.current_pot_kg < self.profile.mid_refill_threshold_kg:
+        #         self.mid_refill_orchestrator.begin(self.profile)
+        #         return
 
         # Step 3: Gap / dispense events
         event = ps.last_event
@@ -346,8 +334,14 @@ class ProgramEngine:
 
     def _handle_pass_stable(self, program, machine):
         pid = program.current_pass
-        print(f"[PROGRAM_ENGINE] PASS {pid} STABLE → DISPENSE OPEN")
+        print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
 
+        # MODULUS CONTROL
+        if (pid % self._skip_n) != 0:
+            print(f"[CONTROL] PASS {pid} skipped (skip_n={self._skip_n})")
+            return
+
+        print(f"[CONTROL] PASS {pid} → DISPENSE (skip_n={self._skip_n})")
         if not machine.is_dispense_window():
             print(f"[PROGRAM_ENGINE] PASS {pid} not in dispense window — skip")
             return
