@@ -110,7 +110,15 @@ class TelemetryValidator:
         # ─────────────────────────────────────
         # 4. GAP (force boolean)
         # ─────────────────────────────────────
-        clean["gap"] = 1 if raw.get("gap") else 0
+        # clean["gap"] = 1 if raw.get("gap") else 0
+        gap_raw = raw.get("gap", 0)
+        try:
+            gap_int = int(gap_raw)
+            clean["gap"] = 1 if gap_int == 1 else 0
+        except Exception:
+            clean["gap"] = last_valid.get("gap", 0)
+
+        print(f"[GAP RAW] raw={raw.get('gap')} parsed={clean['gap']}")
 
         # ─────────────────────────────────────
         # 5. VALVES (strict schema)
