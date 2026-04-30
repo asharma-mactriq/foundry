@@ -114,8 +114,13 @@ class StartupOrchestrator:
                 self._handle_pressurisation(mat)
             else:
                 self._handle_pressurising(ms)
+                
         elif ps.phase == ProgramPhase.LINE_PRIMING:
             self._handle_line_priming(mat)
+
+        elif ps.phase == ProgramPhase.READY:
+            print("[STARTUP_ORCH] READY — control returned to ProgramEngine")
+            return
 
     # def _handle_pressurisation(self, mat):
     #     from app.commands.helpers import create_and_queue_command
@@ -326,12 +331,22 @@ class StartupOrchestrator:
             if not self._prime_stop_sent:
                 create_and_queue_command(name="line.prime_stop", payload={})
                 self._prime_stop_sent = True
-                program_state.on_line_primed()
+                program_state.set_phase(ProgramPhase.READY, "line_primed")
+
+                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+
                 material_state_manager.state.line_primed = True
+
+                self._prime_cmd_sent = False
+                self._prime_stop_sent = False
+
+                self._reseed_after_prime(elapsed)
+                # program_state.on_line_primed()
+                # material_state_manager.state.line_primed = True
+                # self._reseed_after_prime(elapsed)
                 # CHANGE 5: after prime, pressure has bled due to dispense
                 # being open for prime duration. Re-seed so model reflects
                 # that pressure has dropped by (elapsed × dispense_bleed_rate).
-                self._reseed_after_prime(elapsed)
             return
 
         current_kg = mat.current_pot_kg or 0.0
@@ -349,9 +364,22 @@ class StartupOrchestrator:
                 print("[STARTUP_ORCH] TEST MODE forcing line primed")
                 create_and_queue_command(name="line.prime_stop", payload={})
                 self._prime_stop_sent = True
-                program_state.on_line_primed()
+
+                program_state.set_phase(ProgramPhase.READY, "line_primed")
+
+                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+
                 material_state_manager.state.line_primed = True
+
+                self._prime_cmd_sent = False
+                self._prime_stop_sent = False
+
                 self._reseed_after_prime(elapsed)
+
+
+                # program_state.on_line_primed()
+                # material_state_manager.state.line_primed = True
+                # self._reseed_after_prime(elapsed)
             return
 
         # Fixed duration prime — primary completion gate
@@ -363,10 +391,23 @@ class StartupOrchestrator:
             if not self._prime_stop_sent:
                 create_and_queue_command(name="line.prime_stop", payload={})
                 self._prime_stop_sent = True
-                program_state.on_line_primed()
+
+                program_state.set_phase(ProgramPhase.READY, "line_primed")
+
+                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+
                 material_state_manager.state.line_primed = True
-                # CHANGE 5 (same): re-seed pressure model after prime
+
+                self._prime_cmd_sent = False
+                self._prime_stop_sent = False
+
                 self._reseed_after_prime(elapsed)
+
+
+                # program_state.on_line_primed()
+                # material_state_manager.state.line_primed = True
+                # self._reseed_after_prime(elapsed)
+                # CHANGE 5 (same): re-seed pressure model after prime
             return
 
         # Weight invalid fallback
@@ -375,9 +416,21 @@ class StartupOrchestrator:
                 print("[STARTUP_ORCH] Weight invalid — assuming primed (time-based)")
                 create_and_queue_command(name="line.prime_stop", payload={})
                 self._prime_stop_sent = True
-                program_state.on_line_primed()
+
+                program_state.set_phase(ProgramPhase.READY, "line_primed")
+
+                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+
                 material_state_manager.state.line_primed = True
+
+                self._prime_cmd_sent = False
+                self._prime_stop_sent = False
+
                 self._reseed_after_prime(elapsed)
+
+                # program_state.on_line_primed()
+                # material_state_manager.state.line_primed = True
+                # self._reseed_after_prime(elapsed)
             return
 
         # Rate window sampling (logging only)
