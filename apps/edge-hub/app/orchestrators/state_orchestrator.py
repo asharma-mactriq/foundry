@@ -43,7 +43,6 @@ class StateOrchestrator:
         # 2. Material state
         mat = material_orchestrator.process_telemetry(telemetry)
         
-        startup_orchestrator.process()
 
         # 3. System startup (booting → init → ready)
         self._process_system_startup()
@@ -63,6 +62,11 @@ class StateOrchestrator:
         if program_engine:
             program_engine.on_event(ms, ps)
 
+        # startup_orchestrator.process()
+
+        if startup_orchestrator.is_started():
+            startup_orchestrator.process()
+
         if not ps.is_active():
             return ms, ps
 
@@ -78,8 +82,8 @@ class StateOrchestrator:
 
         # 7. Program Engine (dispense logic)
 
-        if program_engine:
-            program_engine.on_event(ms, ps)
+        # if program_engine:
+        #     program_engine.on_event(ms, ps)
 
         # pressure_orchestrator.process()
 

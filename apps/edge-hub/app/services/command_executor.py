@@ -240,23 +240,23 @@ class CommandExecutor:
         if cmd_name == "program.load":
             program_state.on_loaded()
               # 👇 TRIGGER STARTUP
-            self.send_command({
-                "name": "startup.sequence",
-                "payload": {}
-            })
+            # self.send_command({
+            #     "name": "startup.sequence",
+            #     "payload": {}
+            # })
 
         
 
-        elif cmd_name == "startup.sequence":
-            program_state.begin_startup()
+        # elif cmd_name == "startup.sequence":
+        #     program_state.begin_startup()
 
-            from app.modes.mode_types import OperationMode
-            mode_manager.set_operation(OperationMode.auto)
+        #     from app.modes.mode_types import OperationMode
+        #     mode_manager.set_operation(OperationMode.auto)
 
 
-            from app.orchestrators.startup_orchestrator import startup_orchestrator
-            profile = program_engine.profile
-            startup_orchestrator.begin(profile=profile)
+        #     from app.orchestrators.startup_orchestrator import startup_orchestrator
+        #     profile = program_engine.profile
+        #     startup_orchestrator.begin(profile=profile)
 
 
 

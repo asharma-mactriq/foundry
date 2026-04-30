@@ -24,7 +24,7 @@ class StartupOrchestrator:
     def _reset_state(self):
         self._pressurise_stage = "IDLE"
         self._active_cmd = None
-
+        self._started = False
         # CHANGE 1: track actual pot pressurise duration so we can
         # seed program_engine's pressure model accurately on completion
         self._pot_pressurise_open_s = 0.0
@@ -89,7 +89,7 @@ class StartupOrchestrator:
     def begin(self, profile: PaintProfile = None):
         if profile:
             self.profile = profile
-
+        self._started = True   # 🔴 ADD THIS
         # program_state.begin_pot_filling()
         program_state.set_phase(ProgramPhase.PRESSURISING, "startup_pressurise_begin")
         self._pressurise_stage = "PRESSURISE_POT"
@@ -177,6 +177,8 @@ class StartupOrchestrator:
 
     #         self._pressurise_stage = "DONE"
 
+    def is_started(self):
+        return getattr(self, "_started", False)
 
     def _handle_pressurisation(self, mat):
         from app.commands.helpers import create_and_queue_command

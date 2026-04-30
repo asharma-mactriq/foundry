@@ -193,19 +193,22 @@ class ProgramEngine:
             return
 
         # 🔴 STARTUP TRIGGER (critical)
-        if ps.phase == ProgramPhase.LOADED:
+        from app.orchestrators.startup_orchestrator import startup_orchestrator
+
+        if ps.phase == ProgramPhase.LOADED and not startup_orchestrator.is_started():
             from app.orchestrators.startup_orchestrator import startup_orchestrator
             print("[PROGRAM_ENGINE] LOADED → starting startup orchestrator")
+            program_state.begin_startup()   # 🔴 ADD THIS LINE
             startup_orchestrator.begin(self.profile)
             return
 
-        if ps.phase in (
-            ProgramPhase.PRESSURISING,
-            ProgramPhase.LINE_PRIMING,
-        ):
-            from app.orchestrators.startup_orchestrator import startup_orchestrator
-            startup_orchestrator.process()
-            return
+        # if ps.phase in (
+        #     ProgramPhase.PRESSURISING,
+        #     ProgramPhase.LINE_PRIMING,
+        # ):
+        #     from app.orchestrators.startup_orchestrator import startup_orchestrator
+        #     startup_orchestrator.process()
+        #     return
         
 # 🔴 CRITICAL FIX — reset gap memory when entering READY
 
