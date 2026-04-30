@@ -117,6 +117,62 @@ class StartupOrchestrator:
         elif ps.phase == ProgramPhase.LINE_PRIMING:
             self._handle_line_priming(mat)
 
+    # def _handle_pressurisation(self, mat):
+    #     from app.commands.helpers import create_and_queue_command
+    #     p = self.profile
+    #     now = time.time()
+
+    #     # STEP 1: PRESSURISE POT
+    #     if self._pressurise_stage == "PRESSURISE_POT":
+    #         if not self._active_cmd:
+    #             print("[STARTUP] Pressurising pot")
+    #             self._active_cmd = create_and_queue_command(
+    #                 name="pot.pressurise",
+    #                 payload={}
+    #             )
+    #             self._pot_pressurise_ts = now
+    #             return
+
+    #         elapsed = now - self._pot_pressurise_ts
+
+    #         # 🔴 SAFETY GUARD (ADD HERE)
+    #         if elapsed > p.pressure_charge_time_s + 5:
+    #             print("[STARTUP] WARNING: forcing stop (timeout)")
+    #             self._pot_pressurise_open_s = elapsed
+    #             self._active_cmd = None
+    #             self._pressurise_stage = "STOP_POT_PRESSURISE"
+    #             return
+
+    #         if self.executor.is_completed(self._active_cmd):
+
+    #             if elapsed >= p.pressure_charge_time_s:
+    #                 print(f"[STARTUP] Pot pressurised ({elapsed:.1f}s)")
+    #                 self._pot_pressurise_open_s = elapsed
+    #                 self._active_cmd = None
+    #                 self._pressurise_stage = "STOP_POT_PRESSURISE"
+    #         return
+
+    #     # STEP 2: STOP PRESSURE
+    #     if self._pressurise_stage == "STOP_POT_PRESSURISE":
+    #         if not self._active_cmd:
+    #             self._active_cmd = create_and_queue_command(
+    #                 name="pot.pressurise_stop",
+    #                 payload={}
+    #             )
+    #             return
+
+    #         if self.executor.is_completed(self._active_cmd):
+    #             self._active_cmd = None
+    #             self._pressurise_stage = "COMPLETE"
+
+    #     # STEP 3: COMPLETE
+    #     if self._pressurise_stage == "COMPLETE":
+    #         print("[STARTUP] Pressurise complete → LINE_PRIMING")
+    #         program_state.on_pressurised()
+
+    #         self._pressurise_stage = "DONE"
+
+
     def _handle_pressurisation(self, mat):
         from app.commands.helpers import create_and_queue_command
         p = self.profile
@@ -135,7 +191,7 @@ class StartupOrchestrator:
 
             elapsed = now - self._pot_pressurise_ts
 
-            # 🔴 SAFETY GUARD (ADD HERE)
+            # SAFETY GUARD
             if elapsed > p.pressure_charge_time_s + 5:
                 print("[STARTUP] WARNING: forcing stop (timeout)")
                 self._pot_pressurise_open_s = elapsed
@@ -143,13 +199,12 @@ class StartupOrchestrator:
                 self._pressurise_stage = "STOP_POT_PRESSURISE"
                 return
 
-            if self.executor.is_completed(self._active_cmd):
-
-                if elapsed >= p.pressure_charge_time_s:
-                    print(f"[STARTUP] Pot pressurised ({elapsed:.1f}s)")
-                    self._pot_pressurise_open_s = elapsed
-                    self._active_cmd = None
-                    self._pressurise_stage = "STOP_POT_PRESSURISE"
+            # ✅ TIME-BASED COMPLETION (FIXED)
+            if elapsed >= p.pressure_charge_time_s:
+                print(f"[STARTUP] Pot pressurised ({elapsed:.1f}s)")
+                self._pot_pressurise_open_s = elapsed
+                self._active_cmd = None
+                self._pressurise_stage = "STOP_POT_PRESSURISE"
             return
 
         # STEP 2: STOP PRESSURE
@@ -161,21 +216,17 @@ class StartupOrchestrator:
                 )
                 return
 
-            if self.executor.is_completed(self._active_cmd):
-                self._active_cmd = None
-                self._pressurise_stage = "COMPLETE"
+            # ✅ NO EXECUTOR DEPENDENCY
+            self._active_cmd = None
+            self._pressurise_stage = "COMPLETE"
 
         # STEP 3: COMPLETE
         if self._pressurise_stage == "COMPLETE":
             print("[STARTUP] Pressurise complete → LINE_PRIMING")
             program_state.on_pressurised()
-
             self._pressurise_stage = "DONE"
 
 
-    # ─
-    # 
-    # 
     # ─────────────────────────────────────────────────────────────
     # PHASE 2: PRESSURISING — passthrough
     # Pot is already pressurised inside the fill sequence.
