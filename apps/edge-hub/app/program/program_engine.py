@@ -188,8 +188,6 @@ class ProgramEngine:
         if ps.last_event:
             print(f"[PROGRAM_ENGINE] event={ps.last_event} phase={ps.phase}")
 
-        if self.executor.is_busy():
-            return
 
         if ps.phase == ProgramPhase.STARTED:
             return
@@ -202,6 +200,9 @@ class ProgramEngine:
             startup_orchestrator.process()
             return
 
+        if self.executor.is_busy():
+            return
+        
         # if ps.phase == ProgramPhase.MID_REFILLING:
         #     self.mid_refill_orchestrator.process()
         #     return
