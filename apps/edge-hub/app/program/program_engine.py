@@ -150,6 +150,7 @@ class ProgramEngine:
         # self.mid_refill_orchestrator.reset()
         self._reset_pressure_state()
         self._estimated_pressure_mpa = self.profile.pressure_high_mpa
+        self._pressure_last_fire_ts = time.time()   # 🔴 ADD THIS
 
         from app.orchestrators.startup_orchestrator import startup_orchestrator
         startup_orchestrator.reset()
@@ -286,14 +287,17 @@ class ProgramEngine:
         #     print("[ENGINE] executor busy — deferring event")
         #     return
 
+        # 🔴 DO NOT BLOCK DISPENSE ON EXECUTOR BUSY
         if self.executor.is_busy():
             current = getattr(self.executor, "current_command", None)
 
-            if current and current.get("name") == "pot.pressurise":
+            if current and current.get("name") in (
+                "pot.pressurise",
+                "pot.pressurise_stop"
+            ):
                 print("[ENGINE] executor busy with pressure — allowing dispense")
             else:
-                print("[ENGINE] executor busy — deferring event")
-                return
+                print("[ENGINE] executor busy — IGNORING (dispense priority)")
 
         # process event
         if event == "pass_enter":
@@ -366,7 +370,7 @@ class ProgramEngine:
         from app.state.program_state import ProgramPhase
 
         # 🔴 ADD THIS
-        if program_state.phase in (ProgramPhase.LINE_PRIMING, ProgramPhase.PRESSURISING):
+        if program_state.phase != ProgramPhase.RUNNING:
             print("[PRESSURE] blocked during line priming")
             return False
             
@@ -420,7 +424,8 @@ class ProgramEngine:
         # if now - self._pressure_last_fire_ts < 20.0:
         #     print("[PRESSURE] debounce active — skipping")
         #     return False
-
+        if not hasattr(self, "_pressure_last_fire_ts"):
+            self._pressure_last_fire_ts = now
         TOP_UP_INTERVAL = 30.0  # seconds
 
         if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
@@ -589,8 +594,7 @@ class ProgramEngine:
         print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
 
         if self._pressure_pulse_active:
-            print("[DISPENSE] blocked: pressure pulse active")
-            return
+            print("[DISPENSE] pressure active — ignoring (gap priority)")            
 
         # 1. Decision
         allowed = self.should_dispense(pid, machine)
