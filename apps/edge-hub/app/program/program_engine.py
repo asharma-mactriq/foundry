@@ -34,6 +34,8 @@ class ProgramEngine:
         self.executor = executor
         self.config: dict = {}
         self.profile: PaintProfile = DEFAULT_PROFILE
+        self._reset_pressure_state()
+        self._estimated_pressure_mpa = self.profile.pressure_high_mpa
         self._ready_initialized = False
         self._skip_n = 3
         self._last_weight = None
@@ -41,7 +43,6 @@ class ProgramEngine:
         self._pass_window = 0
         self._prev_gap = 0
 
-        self._reset_pressure_state()
 
     # ──────────────────────────────────────────────────────────────
     # Pressure model state
@@ -185,9 +186,9 @@ class ProgramEngine:
         ps = program
         mat = material_state_manager.state
 
-        if ps.last_event:
-            print(f"[PROGRAM_ENGINE] event={ps.last_event} phase={ps.phase}")
-
+        # if ps.last_event:
+        #     print(f"[PROGRAM_ENGINE] event={ps.last_event} phase={ps.phase}")
+        #     ps.last_event = None   # ✅ ADD THIS LINE
 
         if ps.phase == ProgramPhase.STARTED:
             return
@@ -254,9 +255,9 @@ class ProgramEngine:
 
         # Step 1: Pressure maintenance — returns True if pot_air_in
         # is open or a command was just sent. Block everything else.
-        if self._maintain_pressure(now, mat):
-            return
-
+        # if self._maintain_pressure(now, mat):
+        #     return
+        self._maintain_pressure(now, mat)
         # # Step 2: Mid-run refill — only in RUNNING
         # if ps.phase == ProgramPhase.RUNNING:
         #     if mat.current_pot_kg < self.profile.mid_refill_threshold_kg:
@@ -264,9 +265,23 @@ class ProgramEngine:
         #         return
 
         # Step 3: Gap / dispense events
+        # if self.executor.is_busy():
+        #     print("[ENGINE] executor busy — skipping this tick")
+        #     return
+        
+
         print(f"[DEBUG] phase={ps.phase} event={ps.last_event}")
+
         event = ps.last_event
-        ps.last_event = None
+
+        if event is None:
+            return
+
+        if self.executor.is_busy():
+            print("[ENGINE] executor busy — deferring event")
+            return
+
+        # process event
         if event == "pass_enter":
             self._handle_pass_enter(ps)
         elif event == "pass_stable":
@@ -274,9 +289,11 @@ class ProgramEngine:
         elif event == "pass_exit":
             self._handle_pass_exit(ps)
 
-        if self.executor.is_busy():
-            return
+        # ✅ CLEAR ONLY AFTER SUCCESSFUL PROCESS
+        ps.last_event = None
 
+        # if self.executor.is_busy():
+        #     return
 
     # ──────────────────────────────────────────────────────────────
     # PRESSURE MAINTENANCE
@@ -409,6 +426,36 @@ class ProgramEngine:
 
     #     return True
 
+    # def should_dispense(self, pass_id: int, machine) -> bool:
+    #     from app.state.program_state import program_state
+    #     from app.state.material_state import material_state_manager
+
+    #     mat = material_state_manager.state
+
+    #     # 1. Phase gate
+    #     if program_state.phase.value not in ("ready", "running"):
+    #         return False
+
+    #     # 2. Modulus gate (every Nth pass)
+    #     if (pass_id % self._skip_n) != 0:
+    #         return False
+
+    #     # 3. Priming gate (keep this)
+    #     if not mat.line_primed:
+    #         return False
+
+    #     # 4. Gap confirmation (safety)
+    #     # if machine.gap != 1:
+    #     #     return False
+
+    #     # 5. Weight → NO LONGER A BLOCKER
+    #     if mat.current_pot_kg is None:
+    #         print("[DISPENSE] weight invalid → allowing")
+    #     else:
+    #         print(f"[DISPENSE] weight={mat.current_pot_kg} → allowing")
+
+    #     return True
+
     def should_dispense(self, pass_id: int, machine) -> bool:
         from app.state.program_state import program_state
         from app.state.material_state import material_state_manager
@@ -417,28 +464,36 @@ class ProgramEngine:
 
         # 1. Phase gate
         if program_state.phase.value not in ("ready", "running"):
+            print("[DISPENSE] blocked: phase")
             return False
 
-        # 2. Modulus gate (every Nth pass)
+        # 2. One-shot per gap (CRITICAL)
+        if machine.dispense_fired_for_gap:
+            print("[DISPENSE] blocked: already fired for this gap")
+            return False
+
+        # 3. Modulus gate
         if (pass_id % self._skip_n) != 0:
+            print(f"[DISPENSE] blocked: modulus (pid={pass_id})")
             return False
 
-        # 3. Priming gate (keep this)
+        # 4. Priming gate
         if not mat.line_primed:
+            print("[DISPENSE] blocked: not primed")
             return False
 
-        # 4. Gap confirmation (safety)
-        # if machine.gap != 1:
-        #     return False
+        # 5. Gap confirmation (RE-ENABLE THIS)
+        if machine.gap != 1:
+            print("[DISPENSE] blocked: gap lost")
+            return False
 
-        # 5. Weight → NO LONGER A BLOCKER
+        # 6. Weight (non-blocking)
         if mat.current_pot_kg is None:
             print("[DISPENSE] weight invalid → allowing")
         else:
             print(f"[DISPENSE] weight={mat.current_pot_kg} → allowing")
 
         return True
-
 
 
     # ──────────────────────────────────────────────────────────────
@@ -451,9 +506,43 @@ class ProgramEngine:
     def get_dispense_plan(self, pid: int) -> int:
         return self._dispense_ms_for_pass(pid)
 
+    # def _handle_pass_stable(self, program, machine):
+    #     pid = program.current_pass
+    #     print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
+
     def _handle_pass_stable(self, program, machine):
         pid = program.current_pass
+
         print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
+
+        if self._pressure_pulse_active:
+            print("[DISPENSE] blocked: pressure pulse active")
+            return
+
+        # 1. Decision
+        allowed = self.should_dispense(pid, machine)
+
+        print(
+            f"[DISPENSE DECISION] "
+            f"pid={pid} allowed={allowed} skip_n={self._skip_n}"
+        )
+
+        if not allowed:
+            return
+
+        # 2. Plan
+        open_ms = self._dispense_ms_for_pass(pid)
+
+        print(f"[DISPENSE] PASS {pid} → firing {open_ms}ms")
+
+        # 3. Execute
+        self.executor.send_command({
+            "name": "dispense.open",
+            "payload": {"open_ms": open_ms}
+        })
+
+        machine.dispense_fired_for_gap = True   # ✅ latch
+
 
         # # MODULUS CONTROL
         # if (pid % self._skip_n) != 0:

@@ -266,21 +266,21 @@ class StartupOrchestrator:
             # value so maintenance pulses don't fire unnecessarily early.
             mat = material_state_manager.state
             current_kg = mat.current_pot_kg or self.profile.pressure_model_ref_kg
-            self._seed_program_engine_pressure(
-                open_s=self._pot_pressurise_open_s,
-                current_kg=current_kg
-            )
+            # self._seed_program_engine_pressure(
+            #     open_s=self._pot_pressurise_open_s,
+            #     current_kg=current_kg
+            # )
 
             self._complete_pressurisation()
 
-    def _seed_program_engine_pressure(self, open_s: float, current_kg: float):
-        """Notify program_engine of how much pot_air_in time was banked."""
-        try:
-            import app.program.program_engine as program_module
-            if program_module.program_engine is not None:
-                program_module.program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
-        except Exception as e:
-            print(f"[STARTUP_ORCH] Could not seed pressure model: {e}")
+    # def _seed_program_engine_pressure(self, open_s: float, current_kg: float):
+    #     """Notify program_engine of how much pot_air_in time was banked."""
+    #     try:
+    #         import app.program.program_engine as program_module
+    #         if program_module.program_engine is not None:
+    #             program_module.program_engine.seed_pressure(open_s=open_s, current_kg=current_kg)
+    #     except Exception as e:
+    #         print(f"[STARTUP_ORCH] Could not seed pressure model: {e}")
 
     def _complete_pressurisation(self):
         mat = material_state_manager.state
@@ -342,7 +342,7 @@ class StartupOrchestrator:
                 self._prime_cmd_sent = False
                 self._prime_stop_sent = False
 
-                self._reseed_after_prime(elapsed)
+                # self._reseed_after_prime(elapsed)
                 # program_state.on_line_primed()
                 # material_state_manager.state.line_primed = True
                 # self._reseed_after_prime(elapsed)
@@ -376,7 +376,7 @@ class StartupOrchestrator:
                 self._prime_cmd_sent = False
                 self._prime_stop_sent = False
 
-                self._reseed_after_prime(elapsed)
+                # self._reseed_after_prime(elapsed)
 
 
                 # program_state.on_line_primed()
@@ -403,7 +403,7 @@ class StartupOrchestrator:
                 self._prime_cmd_sent = False
                 self._prime_stop_sent = False
 
-                self._reseed_after_prime(elapsed)
+                # self._reseed_after_prime(elapsed)
 
 
                 # program_state.on_line_primed()
@@ -428,7 +428,7 @@ class StartupOrchestrator:
                 self._prime_cmd_sent = False
                 self._prime_stop_sent = False
 
-                self._reseed_after_prime(elapsed)
+                # self._reseed_after_prime(elapsed)
 
                 # program_state.on_line_primed()
                 # material_state_manager.state.line_primed = True
@@ -457,36 +457,36 @@ class StartupOrchestrator:
             f"crack_threshold={p.line_prime_nozzle_crack_rate_kg_s*1000:.1f}g/s"
         )
 
-    def _reseed_after_prime(self, prime_elapsed_s: float):
-        """
-        CHANGE 5: After line priming, the dispense valve was open for
-        prime_elapsed_s seconds. Pressure bled at dispense_bleed_rate
-        the whole time. Subtract that from the model so the maintenance
-        pulse fires immediately if needed instead of waiting based on a
-        stale (too-high) estimate.
+    # def _reseed_after_prime(self, prime_elapsed_s: float):
+    #     """
+    #     CHANGE 5: After line priming, the dispense valve was open for
+    #     prime_elapsed_s seconds. Pressure bled at dispense_bleed_rate
+    #     the whole time. Subtract that from the model so the maintenance
+    #     pulse fires immediately if needed instead of waiting based on a
+    #     stale (too-high) estimate.
 
-        Example: pot pressurised to 0.35 MPa, then prime ran for 5s.
-          pressure_drop = 5 × 0.05 = 0.25 MPa
-          estimated after prime = max(0, 0.35 - 0.25) = 0.10 MPa
-          → below 0.28 → maintenance pulse fires as soon as READY
-        """
-        try:
-            import app.program.program_engine as program_module
-            if program_module.program_engine is not None:
-                p = self.profile
-                drop = prime_elapsed_s * p.pressure_dispense_bleed_mpa_per_s
-                program_module.program_engine._estimated_pressure_mpa = max(
-                    0.0,
-                    program_module.program_engine._estimated_pressure_mpa - drop
-                )
-                print(
-                    f"[STARTUP_ORCH] Pressure re-seeded after prime — "
-                    f"prime={prime_elapsed_s:.1f}s "
-                    f"drop={drop:.4f} MPa "
-                    f"estimated={program_module.program_engine._estimated_pressure_mpa:.4f} MPa"
-                )
-        except Exception as e:
-            print(f"[STARTUP_ORCH] Could not re-seed pressure after prime: {e}")
+    #     Example: pot pressurised to 0.35 MPa, then prime ran for 5s.
+    #       pressure_drop = 5 × 0.05 = 0.25 MPa
+    #       estimated after prime = max(0, 0.35 - 0.25) = 0.10 MPa
+    #       → below 0.28 → maintenance pulse fires as soon as READY
+    #     """
+    #     try:
+    #         import app.program.program_engine as program_module
+    #         if program_module.program_engine is not None:
+    #             p = self.profile
+    #             drop = prime_elapsed_s * p.pressure_dispense_bleed_mpa_per_s
+    #             program_module.program_engine._estimated_pressure_mpa = max(
+    #                 0.0,
+    #                 program_module.program_engine._estimated_pressure_mpa - drop
+    #             )
+    #             print(
+    #                 f"[STARTUP_ORCH] Pressure re-seeded after prime — "
+    #                 f"prime={prime_elapsed_s:.1f}s "
+    #                 f"drop={drop:.4f} MPa "
+    #                 f"estimated={program_module.program_engine._estimated_pressure_mpa:.4f} MPa"
+    #             )
+    #     except Exception as e:
+    #         print(f"[STARTUP_ORCH] Could not re-seed pressure after prime: {e}")
 
 
 startup_orchestrator = StartupOrchestrator()
