@@ -40,8 +40,8 @@ class MaterialOrchestrator:
             if raw is not None:
                 prev = ms.current_pot_kg
                 current = float(raw)
-                filling = program_state.phase == ProgramPhase.POT_FILLING
-
+                # filling = program_state.phase == ProgramPhase.POT_FILLING
+                filling = False
                 if prev is None:
                     # First valid reading — accept unconditionally.
                     # This is why current_pot_kg defaults to None, not 0.0:
