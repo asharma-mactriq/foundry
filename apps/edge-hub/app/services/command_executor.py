@@ -657,22 +657,39 @@ class CommandExecutor:
         # self.sent_at = None
 
 
-    def _check_timeout(self):
-            if not self.current_cmd:
-                return
+    # def _check_timeout(self):
+    #         if not self.current_cmd:
+    #             return
 
-            elapsed = clock.mono() - self.sent_at
+    #         elapsed = clock.mono() - self.sent_at
 
-            # workflow, it might have crashed. We release the lock
-            # so the next command in the queue can try to run.
-            if elapsed > 60.0: 
-                cmd_id = self.current_cmd["cmd_id"]
-                print(f"[EXECUTOR] TIMEOUT for {cmd_id} - Releasing Lock")
+    #         # workflow, it might have crashed. We release the lock
+    #         # so the next command in the queue can try to run.
+    #         if elapsed > 60.0: 
+    #             cmd_id = self.current_cmd["cmd_id"]
+    #             print(f"[EXECUTOR] TIMEOUT for {cmd_id} - Releasing Lock")
                 
-                command_store.update_status(cmd_id, "timeout", {"elapsed": elapsed})
+    #             command_store.update_status(cmd_id, "timeout", {"elapsed": elapsed})
 
-                self.current_cmd = None # <--- THIS IS KEY
-                self.sent_at = None
+    #             self.current_cmd = None # <--- THIS IS KEY
+    #             self.sent_at = None
+
+
+    def _check_timeout(self):
+        if not self.current_cmd:
+            return
+
+        elapsed = clock.mono() - self.sent_at
+
+        timeout_s = 120.0 if self.current_cmd.get("name") == "system.clean" else 60.0
+
+        if elapsed > timeout_s:
+            cmd_id = self.current_cmd["cmd_id"]
+            print(f"[EXECUTOR] TIMEOUT for {cmd_id} - Releasing Lock")
+            command_store.update_status(cmd_id, "timeout", {"elapsed": elapsed})
+            self.current_cmd = None
+            self.sent_at = None
+
                 
     # def _check_timeout(self):
     #     elapsed = time.time() - self.sent_at

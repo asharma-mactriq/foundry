@@ -11,6 +11,10 @@ from app.modes.mode_manager import mode_manager
 from app.modes.mode_types import ProcessMode
 # from app.program.program_engine import program_engine
 import app.program.program_engine as program_module
+
+from app.orchestrators.clean_orchestrator import clean_orchestrator
+
+
 class StateOrchestrator:
 
     def __init__(self):
@@ -96,6 +100,9 @@ class StateOrchestrator:
 
         if startup_orchestrator.is_started():
             startup_orchestrator.process()
+
+        if clean_orchestrator.is_active():
+            clean_orchestrator.process()
 
         if not ps.is_active():
             return ms, ps

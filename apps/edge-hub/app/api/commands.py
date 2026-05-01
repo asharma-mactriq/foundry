@@ -8,6 +8,23 @@ router = APIRouter()
 # -----------------------------------------------------------
 # NEW DISPATCH ONLY (NO OLD CODE)
 # -----------------------------------------------------------
+# @router.post("/dispatch")
+# def dispatch(body: dict, request: Request):
+#     try:
+#         dispatcher = request.app.state.dispatcher
+#         if dispatcher is None:
+#             raise RuntimeError("Dispatcher not initialized")
+
+#         name = body["name"]          # required
+#         payload = body.get("payload", {})
+
+#         cmd = dispatcher.dispatch(name=name, payload=payload)
+
+#         return {"status": "queued", "cmd_id": cmd["cmd_id"]}
+
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/dispatch")
 def dispatch(body: dict, request: Request):
     try:
@@ -15,11 +32,18 @@ def dispatch(body: dict, request: Request):
         if dispatcher is None:
             raise RuntimeError("Dispatcher not initialized")
 
-        name = body["name"]          # required
+        name = body["name"]
         payload = body.get("payload", {})
 
-        cmd = dispatcher.dispatch(name=name, payload=payload)
+        # Route system.clean through orchestrator
+        if name == "system.clean":
+            from app.orchestrators.clean_orchestrator import clean_orchestrator
+            cycles = payload.get("cycles", 1)
+            flush_ms = payload.get("flush_ms", 45000)
+            clean_orchestrator.start(cycles=cycles, flush_ms=flush_ms)
+            return {"status": "queued", "cycles": cycles, "flush_ms": flush_ms}
 
+        cmd = dispatcher.dispatch(name=name, payload=payload)
         return {"status": "queued", "cmd_id": cmd["cmd_id"]}
 
     except Exception as e:
