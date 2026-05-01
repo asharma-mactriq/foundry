@@ -160,16 +160,21 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
 
 
-    elif cmd_name == "pot.pressurise":
-        open_ms = payload.get("open_ms", 8000)
+    # elif cmd_name == "pot.pressurise":
+    #     open_ms = payload.get("open_ms", 8000)
 
+    #     steps += [
+    #         {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
+    #         {"type": "WAIT_MS", "durationMs": open_ms},
+    #         {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
+    #         {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
+    #     ]
+
+    elif cmd_name == "pot.pressurise":
         steps += [
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
-            {"type": "WAIT_MS", "durationMs": open_ms},
-            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
-            {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
+            {"type": "EMIT_EVENT", "eventName": "pressurise_started"},
         ]
-
 
 
 
