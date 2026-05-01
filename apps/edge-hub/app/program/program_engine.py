@@ -643,7 +643,7 @@ class ProgramEngine:
 
         if cmd_id:
             self._rate_accumulator -= 1.0
-            machine.dispense_fired_for_gap = True
+            # machine.dispense_fired_for_gap = True    
             machine.dispense_skipped_for_gap = False
             machine.last_dispense_cmd_id = cmd_id
 
