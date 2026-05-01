@@ -412,14 +412,14 @@ class ProgramEngine:
                 create_and_queue_command(name="pot.pressurise_stop", payload={})
                 self._pressure_stop_sent = True
 
-            return True   # pulse active — always block
+            return False   # pulse active — always block
 
         # ── Case 3: idle — check if top-up needed ────────────────
         if now - self._pressure_pulse_end_ts < p.pressure_top_up_cooldown_s:
             return False
 
-        # if self._estimated_pressure_mpa >= p.pressure_low_mpa:
-        #     return False
+        if self._estimated_pressure_mpa >= p.pressure_low_mpa:
+            return False
 
         # # debounce (VERY IMPORTANT)
         # if now - self._pressure_last_fire_ts < 20.0:
@@ -427,10 +427,10 @@ class ProgramEngine:
         #     return False
         if not hasattr(self, "_pressure_last_fire_ts"):
             self._pressure_last_fire_ts = now
-        TOP_UP_INTERVAL = 30.0  # seconds
+        # TOP_UP_INTERVAL = 30.0  # seconds
 
-        if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
-            return False
+        # if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
+        #     return False
 
         # Pressure below low threshold — fire top-up
         current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
@@ -454,7 +454,7 @@ class ProgramEngine:
         self._pressure_pulse_active = True
         self._pressure_stop_sent = False
         self._pressure_pulse_start_ts = now
-        return True
+        return False
 
     # def should_dispense(self, pass_id: int, machine) -> bool:
     #     # only when program is ready/running
@@ -608,7 +608,7 @@ class ProgramEngine:
 
         if self._pressure_pulse_active:
             print("[DISPENSE] pressure active — ignoring (gap priority)")
-            return    
+            # return    
 
         if self.executor.is_busy():
             print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy)")
