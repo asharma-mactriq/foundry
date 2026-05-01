@@ -372,10 +372,9 @@ class ProgramEngine:
         from app.state.program_state import ProgramPhase
 
         # 🔴 ADD THIS
-        if program_state.phase != ProgramPhase.RUNNING:
+        if program_state.phase not in (ProgramPhase.RUNNING, ProgramPhase.READY):
             print("[PRESSURE] blocked during line priming")
             return False
-            
 
         from app.commands.helpers import create_and_queue_command
 
