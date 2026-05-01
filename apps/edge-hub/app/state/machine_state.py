@@ -37,6 +37,8 @@ class MachineState:
     last_update_ts: float = 0.0
     dispense_fired_for_gap: bool = False
 
+    dispense_skipped_for_gap: bool = False
+    last_dispense_cmd_id: str | None = None
 
     phase: MachinePhase = MachinePhase.INIT
 

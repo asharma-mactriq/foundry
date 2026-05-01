@@ -1,5 +1,6 @@
 # app/program/program_engine.py
 
+from platform import machine
 import time
 
 from app.state.program_state import program_state, ProgramPhase
@@ -42,7 +43,8 @@ class ProgramEngine:
         self._window_drop_sum = 0.0
         self._pass_window = 0
         self._prev_gap = 0
-
+        self._target_rate = 1.0 / self._skip_n
+        self._rate_accumulator = 0.0
 
     # ──────────────────────────────────────────────────────────────
     # Pressure model state
@@ -288,16 +290,16 @@ class ProgramEngine:
         #     return
 
         # 🔴 DO NOT BLOCK DISPENSE ON EXECUTOR BUSY
-        if self.executor.is_busy():
-            current = getattr(self.executor, "current_command", None)
+        # if self.executor.is_busy():
+        #     current = getattr(self.executor, "current_command", None)
 
-            if current and current.get("name") in (
-                "pot.pressurise",
-                "pot.pressurise_stop"
-            ):
-                print("[ENGINE] executor busy with pressure — allowing dispense")
-            else:
-                print("[ENGINE] executor busy — IGNORING (dispense priority)")
+        #     if current and current.get("name") in (
+        #         "pot.pressurise",
+        #         "pot.pressurise_stop"
+        #     ):
+        #         print("[ENGINE] executor busy with pressure — allowing dispense")
+        #     else:
+        #         print("[ENGINE] executor busy — IGNORING (dispense priority)")
 
         # process event
         if event == "pass_enter":
@@ -545,10 +547,10 @@ class ProgramEngine:
             print("[DISPENSE] blocked: already fired for this gap")
             return False
 
-        # 3. Modulus gate
-        if (pass_id % self._skip_n) != 0:
-            print(f"[DISPENSE] blocked: modulus (pid={pass_id})")
-            return False
+        # # 3. Modulus gate
+        # if (pass_id % self._skip_n) != 0:
+        #     print(f"[DISPENSE] blocked: modulus (pid={pass_id})")
+        #     return False
 
         # 4. Priming gate
         if not mat.line_primed:
@@ -585,38 +587,82 @@ class ProgramEngine:
 
     def _handle_pass_stable(self, program, machine):
 
+        pid = program.current_pass
+
+
+        if machine.dispense_fired_for_gap:
+            return
+        
+        # 🔴 RATE ACCUMULATION (THIS IS THE NEW CORE)
+        self._rate_accumulator += self._target_rate
+
+        self._rate_accumulator = min(self._rate_accumulator, 1.5)
+
+        print(f"[RATE] acc={self._rate_accumulator:.2f}")
+
         if machine.gap != 1:
             print("[DISPENSE] skipped: lost gap before execution")
             return
 
-        pid = program.current_pass
-
-        print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
-
         if self._pressure_pulse_active:
-            print("[DISPENSE] pressure active — ignoring (gap priority)")            
+            print("[DISPENSE] pressure active — ignoring (gap priority)")
+            return    
 
-        # 1. Decision
-        allowed = self.should_dispense(pid, machine)
+        if self.executor.is_busy():
+            print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy)")
 
-        print(
-            f"[DISPENSE DECISION] "
-            f"pid={pid} allowed={allowed} skip_n={self._skip_n}"
-        )
+            machine.dispense_fired_for_gap = True   # mark as consumed
+            machine.dispense_skipped_for_gap = True # <-- NEW FLAG
 
-        if not allowed:
             return
+
+        print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")     
+
+        # 🔴 BASE GATING (phase, priming, gap, one-shot)
+        if not self.should_dispense(pid, machine):
+            return
+
+        if self._rate_accumulator < 1.0:
+            return
+        # 1. Decision
+        # allowed = self.should_dispense(pid, machine)
+        # self._rate_accumulator += self._target_rate
 
         # 2. Plan
         open_ms = self._dispense_ms_for_pass(pid)
 
         print(f"[DISPENSE] PASS {pid} → firing {open_ms}ms")
 
-        # 3. Execute
-        self.executor.send_command({
+
+        cmd_id = self.executor.send_command({
             "name": "dispense.open",
             "payload": {"open_ms": open_ms}
         })
+
+        self._rate_accumulator -= 1.0
+        machine.dispense_fired_for_gap = True
+        machine.dispense_skipped_for_gap = False
+        machine.last_dispense_cmd_id = cmd_id
+
+        if self.executor.is_completed(machine.last_dispense_cmd_id):
+            print("dispense actually happened")
+
+
+        # print(
+        #     f"[DISPENSE DECISION] "
+        #     f"pid={pid} allowed={allowed} skip_n={self._skip_n}"
+        # )
+
+        # if not allowed:
+        #     return
+
+        # machine.dispense_fired_for_gap = True
+
+        # 3. Execute
+        # self.executor.send_command({
+        #     "name": "dispense.open",
+        #     "payload": {"open_ms": open_ms}
+        # })
 
         # machine.dispense_fired_for_gap = True   # ✅ latch
 
@@ -654,6 +700,14 @@ class ProgramEngine:
     def _handle_pass_exit(self, program):
         pid = program.current_pass
         print(f"[PROGRAM_ENGINE] PASS {pid} EXIT → DISPENSE STOP")
+
+        from app.state.machine_state import machine_state_manager
+        machine = machine_state_manager.state
+
+        # 🔴 RESET FOR NEXT GAP
+        machine.dispense_fired_for_gap = False
+        machine.dispense_skipped_for_gap = False   # 🔴 ADD THIS
+        machine.last_dispense_cmd_id = None
         # self.executor.send_command({
         #     "name": "dispense.stop",
         #     "payload": {}

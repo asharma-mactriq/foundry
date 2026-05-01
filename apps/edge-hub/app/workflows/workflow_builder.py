@@ -132,6 +132,34 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
     #         {"type": "EMIT_EVENT", "eventName": "pressurise_started"},
     #     ]
         
+
+    elif cmd_name == "system.clean":
+
+        cycles = int(payload.get("cycles", 2))
+        flush_ms = int(payload.get("flush_ms", 2000))
+
+        for i in range(cycles):
+            steps += [
+                {"type": "EMIT_EVENT", "eventName": f"clean_cycle_{i}"},
+
+                # 1. depressurise pot
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+                {"type": "WAIT_MS", "durationMs": 1000},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+
+                # 2. flush cleaning liquid
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["vclean"]},
+                {"type": "WAIT_MS", "durationMs": flush_ms},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["vclean"]},
+
+                # 3. purge through nozzle
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+                {"type": "WAIT_MS", "durationMs": 1500},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+            ]
+
+
+
     elif cmd_name == "pot.pressurise":
         open_ms = payload.get("open_ms", 8000)
 
@@ -141,6 +169,8 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
             {"type": "EMIT_EVENT", "eventName": "pressurise_done"},
         ]
+
+
 
 
     elif cmd_name == "pot.pressurise_stop":

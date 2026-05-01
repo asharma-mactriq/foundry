@@ -117,6 +117,20 @@ class CommandRegistry:
         ))
 
         self.register(CommandSpec(
+            name="system.clean",
+            group="maintenance",
+            allowed_operation_modes=[],   # allow anytime
+            allowed_process_modes=[],
+            payload_schema={
+                "cycles": "int",
+                "flush_ms": "int"
+            },
+            timeout_ms=120000,
+            priority=70,
+            description="Cleaning cycle (flush + purge)"
+        ))
+
+        self.register(CommandSpec(
             name="res.pressurise",
             group="reservoir",
             allowed_operation_modes=[],

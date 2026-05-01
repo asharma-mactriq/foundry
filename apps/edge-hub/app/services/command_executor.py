@@ -559,7 +559,7 @@ class CommandExecutor:
                 return
 
             # mark as fired (one-shot)
-            ms.dispense_fired_for_gap = True
+            # ms.dispense_fired_for_gap = True
 
         # 1. Handle local commands
         if self._handle_local_command(cmd):
