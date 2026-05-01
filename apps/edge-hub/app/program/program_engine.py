@@ -234,6 +234,10 @@ class ProgramEngine:
         if ps.phase in (ProgramPhase.READY, ProgramPhase.RUNNING):
 
             if gap == 1 and self._prev_gap == 0:
+                # Gap appeared — permit dispense
+                from app.modes.mode_manager import mode_manager
+                from app.modes.mode_types import ProcessMode
+                mode_manager.set_process(ProcessMode.window_detected)
                 ps.new_pass()
 
             elif gap == 1 and self._prev_gap == 1:
@@ -241,6 +245,10 @@ class ProgramEngine:
                     ps.mark_stable(ps.current_pass)
 
             elif gap == 0 and self._prev_gap == 1:
+                 # Gap gone — block dispense
+                from app.modes.mode_manager import mode_manager
+                from app.modes.mode_types import ProcessMode
+                mode_manager.set_process(ProcessMode.tracking)
                 if ps.current_pass > 0:
                     ps.mark_exit(ps.current_pass)
 
