@@ -223,7 +223,7 @@ class StartupOrchestrator:
 
             elapsed = now - self._pot_pressurise_ts
 
-            # SAFETY GUARD
+            # SAFETY GUARDFline
             if elapsed > p.pressure_charge_time_s + 5:
                 print("[STARTUP] WARNING: forcing stop (timeout)")
                 self._pot_pressurise_open_s = elapsed

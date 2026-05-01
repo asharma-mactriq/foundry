@@ -23,7 +23,7 @@ class PaintProfile:
     pressurise_max_open_s: float = 25.0
 
     # ── Line Priming ──────────────────────────────────────────────
-    line_prime_min_time_s: float = 5.0
+    line_prime_min_time_s: float = 1.0
     line_prime_timeout_s: float = 60.0
     line_prime_max_drain_kg: float = 1.2
     line_prime_nozzle_crack_rate_kg_s: float = 1.0
@@ -33,7 +33,7 @@ class PaintProfile:
     line_prime_line_volume_kg: float = 0.25
 
     # ── Dispense ──────────────────────────────────────────────────
-    dispense_open_ms: int = 1000
+    dispense_open_ms: int = 2000
     nozzle_open_lag_ms: int = 50
     nozzle_close_lag_ms: int = 50
     inter_plate_maintain_open_ms: int = 0
@@ -112,7 +112,7 @@ DEFAULT_PROFILE = PaintProfile(
     description="Open pipe end — measured bleed rates",
     line_prime_mode="open_pipe",
     line_prime_line_volume_kg=0.25,
-    line_prime_min_time_s=5.0,
+    line_prime_min_time_s=1.0,
     line_prime_timeout_s=60.0,
     line_prime_max_drain_kg=2.5,
     pressurise_open_s=9.0,
@@ -132,13 +132,13 @@ THICK_PASTE_PROFILE = PaintProfile(
     description="High viscosity paste",
     line_prime_mode="open_pipe",
     line_prime_line_volume_kg=0.25,
-    line_prime_min_time_s=10.0,
+    line_prime_min_time_s=2.0,
     line_prime_timeout_s=120.0,
     line_prime_max_drain_kg=0.5,
     pot_fill_target_kg=3.0,
     pot_fill_total_timeout_s=120.0,
     pressurise_open_s=9.0,
-    dispense_open_ms=600,
+    dispense_open_ms=2000,
     nozzle_open_lag_ms=500,
     nozzle_close_lag_ms=300,
     mid_refill_threshold_kg=1.5,
@@ -160,9 +160,9 @@ MEDIUM_PROFILE = PaintProfile(
     pot_fill_target_kg=3.5,
     pot_fill_total_timeout_s=90.0,
     pressurise_open_s=9.0,
-    line_prime_min_time_s=10.0,
+    line_prime_min_time_s=1.0,
     line_prime_timeout_s=60.0,
-    dispense_open_ms=350,
+    dispense_open_ms=1600,
     nozzle_open_lag_ms=250,
     nozzle_close_lag_ms=150,
     mid_refill_threshold_kg=1.0,
@@ -182,10 +182,10 @@ THIN_PROFILE = PaintProfile(
     pot_fill_target_kg=4.0,
     pot_fill_total_timeout_s=60.0,
     pressurise_open_s=9.0,
-    line_prime_min_time_s=5.0,
+    line_prime_min_time_s=0.5,
     line_prime_timeout_s=30.0,
     line_prime_max_drain_kg=1.0,
-    dispense_open_ms=200,
+    dispense_open_ms=1400,
     nozzle_open_lag_ms=150,
     nozzle_close_lag_ms=100,
     mid_refill_threshold_kg=0.8,
