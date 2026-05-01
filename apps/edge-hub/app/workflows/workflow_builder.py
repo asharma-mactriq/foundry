@@ -135,8 +135,8 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
     elif cmd_name == "system.clean":
 
-        cycles = int(payload.get("cycles", 2))
-        flush_ms = int(payload.get("flush_ms", 2000))
+        cycles = int(payload.get("cycles", 5))
+        flush_ms = int(payload.get("flush_ms", 15000))
 
         for i in range(cycles):
             steps += [
@@ -144,7 +144,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
                 # 1. depressurise pot
                 {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
-                {"type": "WAIT_MS", "durationMs": 1000},
+                {"type": "WAIT_MS", "durationMs": 20000},
                 {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
 
                 # 2. flush cleaning liquid
@@ -152,9 +152,35 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
                 {"type": "WAIT_MS", "durationMs": flush_ms},
                 {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["vclean"]},
 
+                              # 1. depressurise pot
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
+                {"type": "WAIT_MS", "durationMs": 5000},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
+
+
                 # 3. purge through nozzle
                 {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+                {"type": "WAIT_MS", "durationMs": 500},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+                           # 3. purge through nozzle
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+                {"type": "WAIT_MS", "durationMs": 200},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+                           # 3. purge through nozzle
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+                {"type": "WAIT_MS", "durationMs": 400},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+                           # 3. purge through nozzle
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
                 {"type": "WAIT_MS", "durationMs": 1500},
+                {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+                           # 3. purge through nozzle
+                {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+                {"type": "WAIT_MS", "durationMs": 10000},
                 {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             ]
 
