@@ -578,6 +578,12 @@ class ProgramEngine:
         pid = program.current_pass
         print(f"[PROGRAM_ENGINE] PASS {pid} ENTER")
 
+        # ✅ ADD THIS
+        self._rate_accumulator += self._target_rate
+        self._rate_accumulator = min(self._rate_accumulator, 2.0)
+
+        print(f"[RATE] acc={self._rate_accumulator:.2f}")
+
     def get_dispense_plan(self, pid: int) -> int:
         return self._dispense_ms_for_pass(pid)
 
@@ -594,9 +600,6 @@ class ProgramEngine:
             return
         
         # 🔴 RATE ACCUMULATION (THIS IS THE NEW CORE)
-        self._rate_accumulator += self._target_rate
-
-        self._rate_accumulator = min(self._rate_accumulator, 1.5)
 
         print(f"[RATE] acc={self._rate_accumulator:.2f}")
 
@@ -610,11 +613,11 @@ class ProgramEngine:
 
         if self.executor.is_busy():
             print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy)")
-
-            machine.dispense_fired_for_gap = True   # mark as consumed
-            machine.dispense_skipped_for_gap = True # <-- NEW FLAG
-
             return
+
+            # machine.dispense_fired_for_gap = True   # mark as consumed
+            # machine.dispense_skipped_for_gap = True # <-- NEW FLAG
+
 
         print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")     
 
@@ -639,13 +642,11 @@ class ProgramEngine:
             "payload": {"open_ms": open_ms}
         })
 
-        self._rate_accumulator -= 1.0
-        machine.dispense_fired_for_gap = True
-        machine.dispense_skipped_for_gap = False
-        machine.last_dispense_cmd_id = cmd_id
-
-        if self.executor.is_completed(machine.last_dispense_cmd_id):
-            print("dispense actually happened")
+        if cmd_id:
+            self._rate_accumulator -= 1.0
+            machine.dispense_fired_for_gap = True
+            machine.dispense_skipped_for_gap = False
+            machine.last_dispense_cmd_id = cmd_id
 
 
         # print(
