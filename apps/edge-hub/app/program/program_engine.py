@@ -161,6 +161,11 @@ class ProgramEngine:
         print(f"[PROGRAM_ENGINE] START PROGRAM config={config}")
         self.config = config
         self._ready_initialized = False
+        self._rate_accumulator = 0.0        # ← ADD THIS
+        self._last_weight = None
+        self._window_drop_sum = 0.0
+        self._pass_window = 0
+        self._prev_gap = 0
         profile_name = config.get("paint_profile")
         self.profile = get_profile(profile_name)
 
