@@ -28,6 +28,9 @@ class TelemetryValidator:
     def reset_baseline(self):
         self.baseline_pot = None
 
+    def reset(self):
+        self.baseline_pot = None
+
     # ---------------------------------------------------------
     # Main sanitize pipeline
     # ---------------------------------------------------------
@@ -43,10 +46,16 @@ class TelemetryValidator:
         if ts is None:
             ts = last_valid.get("ts")
 
-        if last_valid.get("ts") and ts and ts < last_valid["ts"]:
-            return last_valid
+        # if last_valid.get("ts") and ts and ts < last_valid["ts"]:
+        #     return last_valid
 
-        clean["ts"] = ts
+        if last_valid.get("ts") and ts and ts < last_valid["ts"]:
+                    print(f"[VALIDATOR] Timestamp rollback detected ({ts} < {last_valid['ts']}) — resetting baseline")
+                    self.baseline_pot = None   # reset weight baseline too
+                    self.last_valid = {}       # clear stale state
+                    last_valid = {}            # use fresh for this call
+
+                    clean["ts"] = ts
 
         # ─────────────────────────────────────
         # 2. POT WEIGHT (absolute + relative model)

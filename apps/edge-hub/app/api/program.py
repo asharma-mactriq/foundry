@@ -21,6 +21,11 @@ def start_program(request: Request):
     st.plate_stable = False
     st.plate_stable_since = clock.mono()
 
+     # ADD THESE TWO LINES:
+    from app.services.telemetry_service import telemetry_service
+    telemetry_service.validator.reset()
+    telemetry_service.last_valid = {}
+
     config = {
         "program_id": "default",
         "total_passes": 50,
