@@ -89,7 +89,7 @@ class PaintProfile:
     # Minimum gap between top-up pulses (s).
     # Prevents rapid cycling. Must be > time to charge from low→high (~1.8s).
     # Default 5s: enough for the pressure to stabilise after a pulse.
-    pressure_top_up_cooldown_s: float = 2.0
+    pressure_top_up_cooldown_s: float = 5.0
 
     # Hard ceiling on a single top-up pulse (s).
     # charge_time_s (9s) is the absolute max needed from zero.
@@ -123,7 +123,7 @@ DEFAULT_PROFILE = PaintProfile(
     pressure_model_headspace_factor=1.0,
     pressure_idle_bleed_mpa_per_s=0.00117,
     pressure_dispense_bleed_mpa_per_s=0.05,
-    pressure_top_up_cooldown_s=2.0,
+    pressure_top_up_cooldown_s=5.0,
     pressure_top_up_max_s=0.4,
 )
 
@@ -150,7 +150,7 @@ THICK_PASTE_PROFILE = PaintProfile(
     pressure_model_headspace_factor=1.2,   # thick paste resists compression
     pressure_idle_bleed_mpa_per_s=0.00117,
     pressure_dispense_bleed_mpa_per_s=0.05,
-    pressure_top_up_cooldown_s=2.0,
+    pressure_top_up_cooldown_s=5.0,
     pressure_top_up_max_s=0.6,
 )
 
@@ -172,7 +172,7 @@ MEDIUM_PROFILE = PaintProfile(
     pressure_model_ref_kg=3.5,
     pressure_idle_bleed_mpa_per_s=0.00117,
     pressure_dispense_bleed_mpa_per_s=0.05,
-    pressure_top_up_cooldown_s=2.0,
+    pressure_top_up_cooldown_s=5.0,
     pressure_top_up_max_s=0.4,
 )
 
@@ -196,7 +196,7 @@ THIN_PROFILE = PaintProfile(
     pressure_model_ref_kg=3.5,
     pressure_idle_bleed_mpa_per_s=0.00117,
     pressure_dispense_bleed_mpa_per_s=0.05,
-    pressure_top_up_cooldown_s=2.0,
+    pressure_top_up_cooldown_s=5.0,
     pressure_top_up_max_s=0.2,
 )
 

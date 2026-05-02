@@ -67,6 +67,8 @@ class ProgramEngine:
 
         # Timestamp when last pulse completed (for cooldown)
         self._pressure_pulse_end_ts: float = 0.0
+        self._pressure_fallback_ts: float = 0.0
+
 
     def seed_pressure(self, open_s: float, current_kg: float):
         """
@@ -117,6 +119,19 @@ class ProgramEngine:
         self._pressure_last_ts = now
 
         if elapsed <= 0:
+            return
+
+        # # Apply bleed
+        # if dispensing_active:
+        #     bleed = p.pressure_dispense_bleed_mpa_per_s * elapsed
+        # else:
+        #     bleed = p.pressure_idle_bleed_mpa_per_s * elapsed
+
+        # REPLACE with:
+        # Freeze model if sensor is dead — don't decay to zero
+        from app.state.machine_state import machine_state_manager
+        pot_pressure = getattr(machine_state_manager.state, "pot_pressure", -1.0)
+        if pot_pressure is None or pot_pressure <= 0.0:
             return
 
         # Apply bleed
@@ -429,12 +444,28 @@ class ProgramEngine:
         if self._estimated_pressure_mpa >= p.pressure_low_mpa:
             return False
 
+        # ── NEW: 3 lines to kill the spam ────────────────────────
+        FALLBACK_COOLDOWN_S = 15.0
+        # if not hasattr(self, "_pressure_fallback_ts"):
+        #     self._pressure_fallback_ts = 0.0
+
+        pot_pressure = getattr(machine_state_manager.state, "pot_pressure", -1.0)
+        sensor_dead = pot_pressure is None or pot_pressure <= 0.0
+
+        if sensor_dead:
+            if now - self._pressure_fallback_ts < FALLBACK_COOLDOWN_S:
+                return False   # ← this is the only line that matters
+            self._pressure_fallback_ts = now
+            print(f"[PRESSURE_MODEL] Sensor invalid ({pot_pressure}) — fallback pulse (15s cooldown)")
+
+
+
         # # debounce (VERY IMPORTANT)
         # if now - self._pressure_last_fire_ts < 20.0:
         #     print("[PRESSURE] debounce active — skipping")
-        #     return False
-        if not hasattr(self, "_pressure_last_fire_ts"):
-            self._pressure_last_fire_ts = now
+        # #     return False
+        # if not hasattr(self, "_pressure_last_fire_ts"):
+        #     self._pressure_last_fire_ts = now
         # TOP_UP_INTERVAL = 30.0  # seconds
 
         # if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
