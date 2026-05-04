@@ -1,6 +1,6 @@
 # app/program/program_engine.py
 
-from platform import machine
+# from platform import machine
 import time
 
 from app.state.program_state import program_state, ProgramPhase
@@ -13,9 +13,9 @@ CREDIT_FULL            = 1.0
 CREDIT_DISPENSE_COST   = 0.22
 CREDIT_IDLE_BLEED      = 1.0 / 180.0   # full charge gone in 3min idle
 CREDIT_CHARGE_RATE     = 1.0 / 9.0     # 9s = full recharge
-CREDIT_LOW_THRESHOLD   = 0.35
-MAX_PULSE_S            = 9.0
-MIN_PULSE_S            = 1.5
+CREDIT_LOW_THRESHOLD   = 0.50
+MAX_PULSE_S            = 25.0
+MIN_PULSE_S            = 20.0
 FORCED_INTERVAL_S      = 90.0
 PULSE_COOLDOWN_S       = 3.0
 
@@ -116,7 +116,8 @@ class ProgramEngine:
         p = self.profile
         weight_ratio = max(current_kg, 0.05) / p.pressure_model_ref_kg
         charge_rate = (1.0 / 9.0) * weight_ratio
-        self._credits = min(charge_rate * open_s, 1.0)
+         # Startup pressurise is always a full charge — seed at least 0.8
+        self._credits = max(min(charge_rate * open_s, 1.0), 0.8)
         self._credits_last_ts = time.time()
         self._last_repressurise_ts = time.time()
         self._pulse_end_ts = time.time()
@@ -248,6 +249,18 @@ class ProgramEngine:
             self._credits -= CREDIT_IDLE_BLEED * elapsed
         self._credits = max(0.0, min(CREDIT_FULL, self._credits))
 
+    def _is_busy_for_dispense(self) -> bool:
+        """
+        Returns True only if executor is locked on something that
+        genuinely conflicts with dispense. Pressure commands don't —
+        they run in parallel at the hardware level.
+        """
+        name = self.executor.current_cmd_name
+        if name is None:
+            return False
+        PRESSURE_CMDS = {"pot.pressurise", "pot.pressurise_stop"}
+        return name not in PRESSURE_CMDS
+
     def abort(self, reason: str = None):
         from app.modes.mode_manager import mode_manager
         from app.modes.mode_types import OperationMode, ProcessMode
@@ -359,9 +372,9 @@ class ProgramEngine:
 
         # Step 1: Pressure maintenance — returns True if pot_air_in
         # is open or a command was just sent. Block everything else.
-        if self._maintain_pressure(now, mat):
-            return
-        # self._maintain_pressure(now, mat)
+        # if self._maintain_pressure(now, mat):
+        #     return
+        self._maintain_pressure(now, mat)
         # # Step 2: Mid-run refill — only in RUNNING
         # if ps.phase == ProgramPhase.RUNNING:
         #     if mat.current_pot_kg < self.profile.mid_refill_threshold_kg:
@@ -642,40 +655,153 @@ class ProgramEngine:
 
     #     return True
 
+#  problem : pressurise is stopped by gap appearance
+    # def _maintain_pressure(self, now: float, mat) -> bool:
+    #     from app.state.machine_state import machine_state_manager
+    #     from app.commands.helpers import create_and_queue_command
+
+    #     machine = machine_state_manager.state
+
+    #     # Stop pulse immediately if gap opens
+    #     if machine.gap == 1 and self._pulse_active:
+    #         print("[PRESSURE] Gap during pulse — stopping")
+    #         create_and_queue_command(name="pot.pressurise_stop", payload={})
+    #         self._pulse_active = False
+    #         self._pulse_end_ts = now
+    #         return False
+
+    #     # Never repressurise during gap
+    #     if machine.gap == 1:
+    #         return False
+
+    #     self._update_credits(now)
+
+    #     # Pulse active — check stop conditions
+    #     if self._pulse_active:
+    #         pulse_elapsed = now - self._pulse_start_ts
+    #         if self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S:
+    #             reason = "full" if self._credits >= CREDIT_FULL else "max_time"
+    #             print(f"[PRESSURE] Stopping pulse — {reason} credits={self._credits:.3f}")
+    #             create_and_queue_command(name="pot.pressurise_stop", payload={})
+    #             self._pulse_active = False
+    #             self._pulse_end_ts = now
+    #             self._last_repressurise_ts = now
+    #         return True  # block dispense while pulsing
+
+    #     # Cooldown
+    #     if now - self._pulse_end_ts < PULSE_COOLDOWN_S:
+    #         return False
+
+    #     # Fire conditions
+    #     credit_low = self._credits < CREDIT_LOW_THRESHOLD
+    #     forced = (now - self._last_repressurise_ts) > FORCED_INTERVAL_S
+
+    #     if not credit_low and not forced:
+    #         return False
+
+    #     deficit = CREDIT_FULL - self._credits
+    #     pulse_s = max(MIN_PULSE_S, min(deficit / CREDIT_CHARGE_RATE, MAX_PULSE_S))
+    #     reason = "low" if credit_low else "forced"
+    #     print(f"[PRESSURE] Firing — reason={reason} credits={self._credits:.3f} pulse={pulse_s:.1f}s")
+
+    #     create_and_queue_command(name="pot.pressurise", payload={})
+    #     self._pulse_active = True
+    #     self._pulse_start_ts = now
+    #     return True
+
+    # def _maintain_pressure(self, now: float, mat) -> bool:
+    #     from app.state.machine_state import machine_state_manager
+    #     from app.commands.helpers import create_and_queue_command
+
+    #     machine = machine_state_manager.state
+
+    #     # Stop pulse only if gap AND we're about to dispense (credits sufficient)
+    #     # Don't stop just because gap appeared — let it build up
+    #     if machine.gap == 1 and self._pulse_active:
+    #         # Only stop if we have enough credits to potentially dispense
+    #         if self._credits >= CREDIT_LOW_THRESHOLD:
+    #             print("[PRESSURE] Gap during pulse — stopping (credits sufficient)")
+    #             create_and_queue_command(name="pot.pressurise_stop", payload={})
+    #             self._pulse_active = False
+    #             self._pulse_end_ts = now
+    #         # else: keep pulsing through the gap to build credits
+    #         return False
+
+    #     # Never START a new repressurise pulse during gap
+    #     if machine.gap == 1:
+    #         self._update_credits(now)
+    #         return False
+
+    #     self._update_credits(now)
+
+    #     # Pulse active — check stop conditions
+    #     if self._pulse_active:
+    #         pulse_elapsed = now - self._pulse_start_ts
+    #         if self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S:
+    #             reason = "full" if self._credits >= CREDIT_FULL else "max_time"
+    #             print(f"[PRESSURE] Stopping pulse — {reason} credits={self._credits:.3f}")
+    #             create_and_queue_command(name="pot.pressurise_stop", payload={})
+    #             self._pulse_active = False
+    #             self._pulse_end_ts = now
+    #             self._last_repressurise_ts = now
+    #         return True  # block dispense while pulsing
+
+    #     # Cooldown
+    #     if now - self._pulse_end_ts < PULSE_COOLDOWN_S:
+    #         return False
+
+    #     # Fire conditions
+    #     credit_low = self._credits < CREDIT_LOW_THRESHOLD
+    #     forced = (now - self._last_repressurise_ts) > FORCED_INTERVAL_S
+
+    #     if not credit_low and not forced:
+    #         return False
+
+    #     deficit = CREDIT_FULL - self._credits
+    #     pulse_s = max(MIN_PULSE_S, min(deficit / CREDIT_CHARGE_RATE, MAX_PULSE_S))
+    #     reason = "low" if credit_low else "forced"
+    #     print(f"[PRESSURE] Firing — reason={reason} credits={self._credits:.3f} pulse={pulse_s:.1f}s")
+
+    #     create_and_queue_command(name="pot.pressurise", payload={})
+    #     self._pulse_active = True
+    #     self._pulse_start_ts = now
+    #     return True
+
 
     def _maintain_pressure(self, now: float, mat) -> bool:
+        """
+        Never blocks dispense. Just manages pressure independently.
+        Always returns False.
+        """
         from app.state.machine_state import machine_state_manager
         from app.commands.helpers import create_and_queue_command
 
         machine = machine_state_manager.state
 
-        # Stop pulse immediately if gap opens
-        if machine.gap == 1 and self._pulse_active:
-            print("[PRESSURE] Gap during pulse — stopping")
-            create_and_queue_command(name="pot.pressurise_stop", payload={})
-            self._pulse_active = False
-            self._pulse_end_ts = now
-            return False
-
-        # Never repressurise during gap
-        if machine.gap == 1:
-            return False
-
         self._update_credits(now)
 
-        # Pulse active — check stop conditions
+        # If pulse active — check stop conditions
         if self._pulse_active:
             pulse_elapsed = now - self._pulse_start_ts
-            if self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S:
-                reason = "full" if self._credits >= CREDIT_FULL else "max_time"
-                print(f"[PRESSURE] Stopping pulse — {reason} credits={self._credits:.3f}")
+            
+            # Stop if full OR gap appeared AND we've done minimum time
+            gap_interrupt = machine.gap == 1 and pulse_elapsed >= MIN_PULSE_S
+            naturally_done = self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S
+            
+            if gap_interrupt or naturally_done:
+                reason = "gap+min_time" if gap_interrupt else ("full" if self._credits >= CREDIT_FULL else "max_time")
+                print(f"[PRESSURE] Stopping — {reason} elapsed={pulse_elapsed:.1f}s credits={self._credits:.3f}")
                 create_and_queue_command(name="pot.pressurise_stop", payload={})
                 self._pulse_active = False
                 self._pulse_end_ts = now
                 self._last_repressurise_ts = now
-            return True  # block dispense while pulsing
+            
+            return False  # NEVER block dispense
 
-        # Cooldown
+        # Don't start new pulse during gap or cooldown
+        if machine.gap == 1:
+            return False
+        
         if now - self._pulse_end_ts < PULSE_COOLDOWN_S:
             return False
 
@@ -694,7 +820,10 @@ class ProgramEngine:
         create_and_queue_command(name="pot.pressurise", payload={})
         self._pulse_active = True
         self._pulse_start_ts = now
-        return True
+        return False  # NEVER block dispense
+
+
+
 
 
     def should_dispense(self, pass_id: int, machine) -> bool:
@@ -777,12 +906,16 @@ class ProgramEngine:
         #     print("[DISPENSE] pressure active — ignoring (gap priority)")
             # return    
 
-        if self._pulse_active:
-            print("[DISPENSE] pulse active — ignoring (gap priority)")
-            return
+        # if self._pulse_active:
+        #     print("[DISPENSE] pulse active — ignoring (gap priority)")
+        #     return
 
-        if self.executor.is_busy():
-            print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy)")
+        # if self.executor.is_busy():
+        #     print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy)")
+        #     return
+
+        if self._is_busy_for_dispense():
+            print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy with non-pressure cmd)")
             return
 
             # machine.dispense_fired_for_gap = True   # mark as consumed
@@ -814,7 +947,7 @@ class ProgramEngine:
 
         if cmd_id:
             self._rate_accumulator -= 1.0
-            # machine.dispense_fired_for_gap = True    
+            machine.dispense_fired_for_gap = True    
             machine.dispense_skipped_for_gap = False
             machine.last_dispense_cmd_id = cmd_id
 

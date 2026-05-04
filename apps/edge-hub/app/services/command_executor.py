@@ -38,6 +38,12 @@ class CommandExecutor:
         self.current_cmd = None
         self.sent_at = None
 
+    @property
+    def current_cmd_name(self) -> str | None:
+        if self.current_cmd is None:
+            return None
+        return self.current_cmd.get("name")
+
     def start(self):
         self.running = True
         threading.Thread(target=self.loop, daemon=True).start()
@@ -547,19 +553,19 @@ class CommandExecutor:
         #     return
 
 
-        if cmd["name"] == "dispense.open":
-            ms = machine_state_manager.state
-            if getattr(ms, "dispense_fired_for_gap", False):
-                command_store.update_status(
-                    cmd["cmd_id"],
-                    "blocked",
-                    {"reason": "already_dispensed_for_gap"}
-                )
-                print("[EXECUTOR] dispense already fired for this gap — blocked")
-                return
+        # if cmd["name"] == "dispense.open":
+        #     ms = machine_state_manager.state
+        #     if getattr(ms, "dispense_fired_for_gap", False):
+        #         command_store.update_status(
+        #             cmd["cmd_id"],
+        #             "blocked",
+        #             {"reason": "already_dispensed_for_gap"}
+        #         )
+        #         print("[EXECUTOR] dispense already fired for this gap — blocked")
+        #         return
 
-            # mark as fired (one-shot)
-            ms.dispense_fired_for_gap = True
+        #     # mark as fired (one-shot)
+        #     ms.dispense_fired_for_gap = True
 
         # 1. Handle local commands
         if self._handle_local_command(cmd):
