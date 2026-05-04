@@ -307,13 +307,26 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
 
 
     elif cmd_name == "program.stop":
-        open_ms = payload.get("open_ms", 10000)
+        open_ms = payload.get("open_ms", 60000)
         steps += [
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
             {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
             {"type": "WAIT_MS", "durationMs": open_ms},
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+            {"type": "WAIT_MS", "durationMs": open_ms},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+            {"type": "WAIT_MS", "durationMs": open_ms},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+
+            {"type": "OPEN_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+            {"type": "WAIT_MS", "durationMs": open_ms},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
+
             {"type": "EMIT_EVENT", "eventName": "program_stopped"},
         ]
 

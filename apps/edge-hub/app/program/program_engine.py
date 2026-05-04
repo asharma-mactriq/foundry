@@ -10,13 +10,13 @@ from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
 
 # Constants
 CREDIT_FULL            = 1.0
-CREDIT_DISPENSE_COST   = 0.30
+CREDIT_DISPENSE_COST   = 0.10
 CREDIT_IDLE_BLEED      = 1.0 / 180.0   # full charge gone in 3min idle
-CREDIT_CHARGE_RATE     = 1.0 / 15.0     # 9s = full recharge
-CREDIT_LOW_THRESHOLD = CREDIT_DISPENSE_COST * 1.5  # = 0.45
-MAX_PULSE_S            = 30.0
-MIN_PULSE_S            = 15.0
-FORCED_INTERVAL_S      = 60.0
+CREDIT_CHARGE_RATE     = 1.0 / 25.0     # 9s = full recharge
+CREDIT_LOW_THRESHOLD = CREDIT_DISPENSE_COST * 2     
+MAX_PULSE_S            = 15.0
+MIN_PULSE_S            = 5.0
+FORCED_INTERVAL_S      = 180.0
 PULSE_COOLDOWN_S       = 3.0
 
 class ProgramEngine:
@@ -797,7 +797,7 @@ class ProgramEngine:
             naturally_done = self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S
             
             if gap_interrupt or naturally_done:
-                self._credits = min(self._credits, 0.85)
+                self._credits = min(self._credits, 0.92)
                 reason = "gap+min_time" if gap_interrupt else ("full" if self._credits >= CREDIT_FULL else "max_time")
                 print(f"[PRESSURE] Stopping — {reason} elapsed={pulse_elapsed:.1f}s credits={self._credits:.3f}")
                 create_and_queue_command(name="pot.pressurise_stop", payload={})
@@ -970,7 +970,7 @@ class ProgramEngine:
         # if self._credits < CREDIT_DISPENSE_COST:
         #     print(f"[DISPENSE] blocked: low credits={self._credits:.3f}")
         #     return
-        MAX_DISPENSES_PER_CHARGE = 2
+        MAX_DISPENSES_PER_CHARGE = 6
 
         if self._dispense_since_last_charge >= MAX_DISPENSES_PER_CHARGE:
             if not self._pulse_active:
