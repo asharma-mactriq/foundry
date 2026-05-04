@@ -194,7 +194,7 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "EMIT_EVENT", "eventName": "clean_cycle_start"},
 
             {"type": "OPEN_VALVE",  "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
-            {"type": "WAIT_MS",     "durationMs": 5000},
+            {"type": "WAIT_MS",     "durationMs": 30000},
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_out"]},
 
             {"type": "OPEN_VALVE",  "valveId": DEVICE_MAP["valves"]["vclean"]},
@@ -202,11 +202,19 @@ def build_workflow_for_command(cmd_name: str, payload: Dict[str, Any], cmd_id: s
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["vclean"]},
 
             {"type": "OPEN_VALVE",  "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
-            {"type": "WAIT_MS",     "durationMs": 3000},
+            {"type": "WAIT_MS",     "durationMs": 5000},
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["pot_air_in"]},
 
             {"type": "OPEN_VALVE",  "valveId": DEVICE_MAP["valves"]["dispense"]},
             {"type": "WAIT_MS",     "durationMs": 3000},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+            {"type": "OPEN_VALVE",  "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "WAIT_MS",     "durationMs": 3000},
+            {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
+
+            {"type": "OPEN_VALVE",  "valveId": DEVICE_MAP["valves"]["dispense"]},
+            {"type": "WAIT_MS",     "durationMs": 10000},
             {"type": "CLOSE_VALVE", "valveId": DEVICE_MAP["valves"]["dispense"]},
 
             {"type": "EMIT_EVENT",  "eventName": "clean_cycle_done"},
