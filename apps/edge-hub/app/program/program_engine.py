@@ -10,13 +10,13 @@ from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
 
 # Constants
 CREDIT_FULL            = 1.0
-CREDIT_DISPENSE_COST   = 0.22
+CREDIT_DISPENSE_COST   = 0.30
 CREDIT_IDLE_BLEED      = 1.0 / 180.0   # full charge gone in 3min idle
-CREDIT_CHARGE_RATE     = 1.0 / 9.0     # 9s = full recharge
-CREDIT_LOW_THRESHOLD   = 0.50
-MAX_PULSE_S            = 25.0
-MIN_PULSE_S            = 20.0
-FORCED_INTERVAL_S      = 90.0
+CREDIT_CHARGE_RATE     = 1.0 / 15.0     # 9s = full recharge
+CREDIT_LOW_THRESHOLD = CREDIT_DISPENSE_COST * 1.5  # = 0.45
+MAX_PULSE_S            = 30.0
+MIN_PULSE_S            = 15.0
+FORCED_INTERVAL_S      = 60.0
 PULSE_COOLDOWN_S       = 3.0
 
 class ProgramEngine:
@@ -54,7 +54,7 @@ class ProgramEngine:
         self._prev_gap = 0
         self._target_rate = 1.0 / self._skip_n
         self._rate_accumulator = 0.0
-
+        self._dispense_since_last_charge = 0
     # ──────────────────────────────────────────────────────────────
     # Pressure model state
     # ──────────────────────────────────────────────────────────────
@@ -117,17 +117,20 @@ class ProgramEngine:
         weight_ratio = max(current_kg, 0.05) / p.pressure_model_ref_kg
         charge_rate = (1.0 / 9.0) * weight_ratio
          # Startup pressurise is always a full charge — seed at least 0.8
-        self._credits = max(min(charge_rate * open_s, 1.0), 0.8)
+        # self._credits = max(min(charge_rate * open_s, 1.0), 0.8)
+        self._credits = min(charge_rate * open_s, 1.0)
         self._credits_last_ts = time.time()
         self._last_repressurise_ts = time.time()
         self._pulse_end_ts = time.time()
         print(f"[PRESSURE] Seeded — open_s={open_s:.1f}s weight_ratio={weight_ratio:.2f} credits={self._credits:.3f}")
 
-    def on_dispense_complete(self):
-        self._credits = max(0.0, self._credits - CREDIT_DISPENSE_COST)
-        print(f"[PRESSURE] Dispense cost — credits={self._credits:.3f}")
+    def on_dispense_complete(self, open_ms: float):
+        BASE_MS = 1000.0
+        cost = CREDIT_DISPENSE_COST * (open_ms / BASE_MS)
+        self._credits = max(0.0, self._credits - cost)
 
-
+        print(f"[PRESSURE] Dispense cost — open_ms={open_ms} credits={self._credits:.3f}")
+        
     # def _charge_rate_mpa_per_s(self, current_kg: float) -> float:
     #     """
     #     How fast pot pressurises at current fill weight.
@@ -241,6 +244,10 @@ class ProgramEngine:
     def _update_credits(self, now: float):
         elapsed = now - self._credits_last_ts
         self._credits_last_ts = now
+
+        if not self._pulse_active and elapsed > 5.0:
+            self._credits *= 0.95
+
         if elapsed <= 0:
             return
         if self._pulse_active:
@@ -785,10 +792,12 @@ class ProgramEngine:
             pulse_elapsed = now - self._pulse_start_ts
             
             # Stop if full OR gap appeared AND we've done minimum time
-            gap_interrupt = machine.gap == 1 and pulse_elapsed >= MIN_PULSE_S
+            # gap_interrupt = machine.gap == 1 and pulse_elapsed >= MIN_PULSE_S
+            gap_interrupt = False
             naturally_done = self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S
             
             if gap_interrupt or naturally_done:
+                self._credits = min(self._credits, 0.85)
                 reason = "gap+min_time" if gap_interrupt else ("full" if self._credits >= CREDIT_FULL else "max_time")
                 print(f"[PRESSURE] Stopping — {reason} elapsed={pulse_elapsed:.1f}s credits={self._credits:.3f}")
                 create_and_queue_command(name="pot.pressurise_stop", payload={})
@@ -804,6 +813,12 @@ class ProgramEngine:
         
         if now - self._pulse_end_ts < PULSE_COOLDOWN_S:
             return False
+
+        if now - self._last_repressurise_ts > 300:  # 5 minutes
+            if not self._pulse_active:
+                print("[PRESSURE] periodic time reset")
+                self._force_repressurise(now)       
+
 
         # Fire conditions
         credit_low = self._credits < CREDIT_LOW_THRESHOLD
@@ -865,6 +880,18 @@ class ProgramEngine:
 
         return True
 
+    def _force_repressurise(self, now: float):
+        from app.commands.helpers import create_and_queue_command
+
+        print(f"[PRESSURE] FORCE RECHARGE — credits={self._credits:.3f}")
+
+        create_and_queue_command(name="pot.pressurise", payload={})
+
+        self._pulse_active = True
+        self._pulse_start_ts = now
+        self._last_repressurise_ts = now   # ✅ ADD THIS
+        self._dispense_since_last_charge = 0   # reset counter
+
 
     # ──────────────────────────────────────────────────────────────
     # PASS EVENTS
@@ -887,13 +914,16 @@ class ProgramEngine:
     #     print(f"[PROGRAM_ENGINE] PASS {pid} STABLE")
 
     def _handle_pass_stable(self, program, machine):
-
         pid = program.current_pass
-
+        now = time.time()
 
         if machine.dispense_fired_for_gap:
             return
         
+        if self._pulse_active:
+            print("[DISPENSE] blocked: recharge in progress")
+            return
+
         # 🔴 RATE ACCUMULATION (THIS IS THE NEW CORE)
 
         print(f"[RATE] acc={self._rate_accumulator:.2f}")
@@ -937,6 +967,26 @@ class ProgramEngine:
         # 2. Plan
         open_ms = self._dispense_ms_for_pass(pid)
 
+        # if self._credits < CREDIT_DISPENSE_COST:
+        #     print(f"[DISPENSE] blocked: low credits={self._credits:.3f}")
+        #     return
+        MAX_DISPENSES_PER_CHARGE = 2
+
+        if self._dispense_since_last_charge >= MAX_DISPENSES_PER_CHARGE:
+            if not self._pulse_active:
+                print("[PRESSURE] periodic reset — forcing recharge")
+                self._force_repressurise(now)
+            return
+
+        MIN_SAFE_CREDITS = CREDIT_DISPENSE_COST * 1.3
+
+        if self._credits < MIN_SAFE_CREDITS:
+            if not self._pulse_active:
+                print("[DISPENSE] forcing repressurise before dispense")
+                self._force_repressurise(now)
+            return
+        
+
         print(f"[DISPENSE] PASS {pid} → firing {open_ms}ms")
 
 
@@ -950,6 +1000,9 @@ class ProgramEngine:
             machine.dispense_fired_for_gap = True    
             machine.dispense_skipped_for_gap = False
             machine.last_dispense_cmd_id = cmd_id
+            machine.last_dispense_open_ms = open_ms
+            self._dispense_since_last_charge += 1   # ✅ increment ONLY after actual fire
+
 
 
         # print(
@@ -1008,10 +1061,11 @@ class ProgramEngine:
         from app.state.machine_state import machine_state_manager
         machine = machine_state_manager.state
 
-        if machine.dispense_fired_for_gap:
-            self.on_dispense_complete()
+        if machine.dispense_fired_for_gap and machine.last_dispense_open_ms is not None:
+            self.on_dispense_complete(machine.last_dispense_open_ms)
 
         # 🔴 RESET FOR NEXT GAP
+        machine.last_dispense_open_ms = None
         machine.dispense_fired_for_gap = False
         machine.dispense_skipped_for_gap = False   # 🔴 ADD THIS
         machine.last_dispense_cmd_id = None
