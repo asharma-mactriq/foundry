@@ -8,7 +8,16 @@ from app.state.material_state import material_state_manager
 from app.services.command_executor import CommandExecutor
 from app.config.paint_profile import PaintProfile, get_profile, DEFAULT_PROFILE
 
-
+# Constants
+CREDIT_FULL            = 1.0
+CREDIT_DISPENSE_COST   = 0.22
+CREDIT_IDLE_BLEED      = 1.0 / 180.0   # full charge gone in 3min idle
+CREDIT_CHARGE_RATE     = 1.0 / 9.0     # 9s = full recharge
+CREDIT_LOW_THRESHOLD   = 0.35
+MAX_PULSE_S            = 9.0
+MIN_PULSE_S            = 1.5
+FORCED_INTERVAL_S      = 90.0
+PULSE_COOLDOWN_S       = 3.0
 
 class ProgramEngine:
     """
@@ -36,7 +45,7 @@ class ProgramEngine:
         self.config: dict = {}
         self.profile: PaintProfile = DEFAULT_PROFILE
         self._reset_pressure_state()
-        self._estimated_pressure_mpa = self.profile.pressure_high_mpa
+        # self._estimated_pressure_mpa = self.profile.pressure_high_mpa
         self._ready_initialized = False
         self._skip_n = 3
         self._last_weight = None
@@ -49,110 +58,135 @@ class ProgramEngine:
     # ──────────────────────────────────────────────────────────────
     # Pressure model state
     # ──────────────────────────────────────────────────────────────
+    # def _reset_pressure_state(self):
+    #     # Estimated pot pressure in MPa — the single number we track
+    #     self._estimated_pressure_mpa: float = 0.0
+
+    #     # Timestamp of last model update (used to compute elapsed per tick)
+    #     self._pressure_last_ts: float = time.time()
+
+    #     # True while pot_air_in is open for a top-up pulse
+    #     self._pressure_pulse_active: bool = False
+
+    #     # Timestamp when current pulse opened
+    #     self._pressure_pulse_start_ts: float = 0.0
+
+    #     # True after pressurise_stop sent — clear next tick
+    #     self._pressure_stop_sent: bool = False
+
+    #     # Timestamp when last pulse completed (for cooldown)
+    #     self._pressure_pulse_end_ts: float = 0.0
+    #     self._pressure_fallback_ts: float = 0.0
+
+
     def _reset_pressure_state(self):
-        # Estimated pot pressure in MPa — the single number we track
-        self._estimated_pressure_mpa: float = 0.0
+        self._credits: float = 0.0
+        self._credits_last_ts: float = time.time()
+        self._pulse_active: bool = False
+        self._pulse_start_ts: float = 0.0
+        self._pulse_end_ts: float = 0.0
+        self._last_repressurise_ts: float = 0.0
 
-        # Timestamp of last model update (used to compute elapsed per tick)
-        self._pressure_last_ts: float = time.time()
 
-        # True while pot_air_in is open for a top-up pulse
-        self._pressure_pulse_active: bool = False
 
-        # Timestamp when current pulse opened
-        self._pressure_pulse_start_ts: float = 0.0
+    # def seed_pressure(self, open_s: float, current_kg: float):
+    #     """
+    #     Called after any pot_air_in open event (startup pressurise,
+    #     mid-refill repressurise) so the model starts accurately.
 
-        # True after pressurise_stop sent — clear next tick
-        self._pressure_stop_sent: bool = False
-
-        # Timestamp when last pulse completed (for cooldown)
-        self._pressure_pulse_end_ts: float = 0.0
-        self._pressure_fallback_ts: float = 0.0
-
+    #     Computes how much pressure was built by that open duration,
+    #     accounting for current paint weight (headspace).
+    #     """
+    #     p = self.profile
+    #     charge_rate = self._charge_rate_mpa_per_s(current_kg)
+    #     gained = charge_rate * open_s
+    #     self._estimated_pressure_mpa = min(
+    #         self._estimated_pressure_mpa + gained,
+    #         p.pressure_high_mpa
+    #     )
+    #     self._pressure_last_ts = time.time()
+    #     print(
+    #         f"[PRESSURE_MODEL] Seeded — open_s={open_s:.1f}s "
+    #         f"charge_rate={charge_rate:.5f} MPa/s "
+    #         f"gained={gained:.4f} MPa "
+    #         f"estimated={self._estimated_pressure_mpa:.4f} MPa"
+    #     )
 
     def seed_pressure(self, open_s: float, current_kg: float):
-        """
-        Called after any pot_air_in open event (startup pressurise,
-        mid-refill repressurise) so the model starts accurately.
-
-        Computes how much pressure was built by that open duration,
-        accounting for current paint weight (headspace).
-        """
         p = self.profile
-        charge_rate = self._charge_rate_mpa_per_s(current_kg)
-        gained = charge_rate * open_s
-        self._estimated_pressure_mpa = min(
-            self._estimated_pressure_mpa + gained,
-            p.pressure_high_mpa
-        )
-        self._pressure_last_ts = time.time()
-        print(
-            f"[PRESSURE_MODEL] Seeded — open_s={open_s:.1f}s "
-            f"charge_rate={charge_rate:.5f} MPa/s "
-            f"gained={gained:.4f} MPa "
-            f"estimated={self._estimated_pressure_mpa:.4f} MPa"
-        )
+        weight_ratio = max(current_kg, 0.05) / p.pressure_model_ref_kg
+        charge_rate = (1.0 / 9.0) * weight_ratio
+        self._credits = min(charge_rate * open_s, 1.0)
+        self._credits_last_ts = time.time()
+        self._last_repressurise_ts = time.time()
+        self._pulse_end_ts = time.time()
+        print(f"[PRESSURE] Seeded — open_s={open_s:.1f}s weight_ratio={weight_ratio:.2f} credits={self._credits:.3f}")
 
-    def _charge_rate_mpa_per_s(self, current_kg: float) -> float:
-        """
-        How fast pot pressurises at current fill weight.
-        More paint = less headspace = faster charge.
-        charge_rate = (pressure_high / charge_time_s) * (current_kg / ref_kg) * factor
-        """
-        p = self.profile
-        if current_kg <= 0:
-            current_kg = p.pressure_model_ref_kg
-        base_rate = p.pressure_high_mpa / p.pressure_charge_time_s
-        weight_ratio = current_kg / p.pressure_model_ref_kg
-        return base_rate * weight_ratio * p.pressure_model_headspace_factor
+    def on_dispense_complete(self):
+        self._credits = max(0.0, self._credits - CREDIT_DISPENSE_COST)
+        print(f"[PRESSURE] Dispense cost — credits={self._credits:.3f}")
 
-    def _update_pressure_model(self, now: float, dispensing_active: bool):
-        """
-        Tick the pressure model:
-          - Apply bleed (idle or dispense rate) for elapsed time
-          - If pulse active, apply charge for elapsed time
-          - Clamp to [0, pressure_high_mpa]
-        """
-        p = self.profile
-        mat = material_state_manager.state
-        elapsed = now - self._pressure_last_ts
-        self._pressure_last_ts = now
 
-        if elapsed <= 0:
-            return
+    # def _charge_rate_mpa_per_s(self, current_kg: float) -> float:
+    #     """
+    #     How fast pot pressurises at current fill weight.
+    #     More paint = less headspace = faster charge.
+    #     charge_rate = (pressure_high / charge_time_s) * (current_kg / ref_kg) * factor
+    #     """
+    #     p = self.profile
+    #     if current_kg <= 0:
+    #         current_kg = p.pressure_model_ref_kg
+    #     base_rate = p.pressure_high_mpa / p.pressure_charge_time_s
+    #     weight_ratio = current_kg / p.pressure_model_ref_kg
+    #     return base_rate * weight_ratio * p.pressure_model_headspace_factor
 
-        # # Apply bleed
-        # if dispensing_active:
-        #     bleed = p.pressure_dispense_bleed_mpa_per_s * elapsed
-        # else:
-        #     bleed = p.pressure_idle_bleed_mpa_per_s * elapsed
+    # def _update_pressure_model(self, now: float, dispensing_active: bool):
+    #     """
+    #     Tick the pressure model:
+    #       - Apply bleed (idle or dispense rate) for elapsed time
+    #       - If pulse active, apply charge for elapsed time
+    #       - Clamp to [0, pressure_high_mpa]
+    #     """
+    #     p = self.profile
+    #     mat = material_state_manager.state
+    #     elapsed = now - self._pressure_last_ts
+    #     self._pressure_last_ts = now
 
-        # REPLACE with:
-        # Freeze model if sensor is dead — don't decay to zero
-        from app.state.machine_state import machine_state_manager
-        pot_pressure = getattr(machine_state_manager.state, "pot_pressure", -1.0)
-        if pot_pressure is None or pot_pressure <= 0.0:
-            return
+    #     if elapsed <= 0:
+    #         return
 
-        # Apply bleed
-        if dispensing_active:
-            bleed = p.pressure_dispense_bleed_mpa_per_s * elapsed
-        else:
-            bleed = p.pressure_idle_bleed_mpa_per_s * elapsed
+    #     # # Apply bleed
+    #     # if dispensing_active:
+    #     #     bleed = p.pressure_dispense_bleed_mpa_per_s * elapsed
+    #     # else:
+    #     #     bleed = p.pressure_idle_bleed_mpa_per_s * elapsed
 
-        self._estimated_pressure_mpa = max(
-            0.0,
-            self._estimated_pressure_mpa - bleed
-        )
+    #     # REPLACE with:
+    #     # Freeze model if sensor is dead — don't decay to zero
+    #     from app.state.machine_state import machine_state_manager
+    #     pot_pressure = getattr(machine_state_manager.state, "pot_pressure", -1.0)
+    #     if pot_pressure is None or pot_pressure <= 0.0:
+    #         return
 
-        # Apply charge if pot_air_in open
-        if self._pressure_pulse_active:
-            current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
-            charge = self._charge_rate_mpa_per_s(current_kg) * elapsed
-            self._estimated_pressure_mpa = min(
-                self._estimated_pressure_mpa + charge,
-                p.pressure_high_mpa
-            )
+    #     # Apply bleed
+    #     if dispensing_active:
+    #         bleed = p.pressure_dispense_bleed_mpa_per_s * elapsed
+    #     else:
+    #         bleed = p.pressure_idle_bleed_mpa_per_s * elapsed
+
+    #     self._estimated_pressure_mpa = max(
+    #         0.0,
+    #         self._estimated_pressure_mpa - bleed
+    #     )
+
+    #     # Apply charge if pot_air_in open
+    #     if self._pressure_pulse_active:
+    #         current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
+    #         charge = self._charge_rate_mpa_per_s(current_kg) * elapsed
+    #         self._estimated_pressure_mpa = min(
+    #             self._estimated_pressure_mpa + charge,
+    #             p.pressure_high_mpa
+    #         )
 
     # ──────────────────────────────────────────────────────────────
     # API
@@ -171,7 +205,7 @@ class ProgramEngine:
 
         # self.mid_refill_orchestrator.reset()
         self._reset_pressure_state()
-        self._estimated_pressure_mpa = self.profile.pressure_high_mpa
+        # self._estimated_pressure_mpa = self.profile.pressure_high_mpa
         self._pressure_last_fire_ts = time.time()   # 🔴 ADD THIS
 
         from app.orchestrators.startup_orchestrator import startup_orchestrator
@@ -184,12 +218,35 @@ class ProgramEngine:
             "payload": {"program_id": config.get("program_id", "default")}
         })
 
+
+    # def _update_credits(self, now: float):
+    #     elapsed = now - self._credits_last_ts
+    #     self._credits_last_ts = now
+    #     if elapsed <= 0:
+    #         return
+    #     if self._pulse_active:
+    #         from app.state.machine_state import machine_state_manager
+    #         pot_air_in = getattr(machine_state_manager.state, "pot_air_in", False)
+    #         if pot_air_in:
+    #             self._credits += CREDIT_CHARGE_RATE * elapsed   # was self.CREDIT_CHARGE_RATE
+    #         else:
+    #             self._pulse_active = False
+    #             self._pulse_end_ts = now
+    #     else:
+    #         self._credits -= CREDIT_IDLE_BLEED * elapsed
+    #     self._credits = max(0.0, min(CREDIT_FULL, self._credits))
+
+
+
+
     def abort(self, reason: str = None):
         from app.modes.mode_manager import mode_manager
         from app.modes.mode_types import OperationMode, ProcessMode
         program_state.set_phase(ProgramPhase.ABORT, reason or "abort")
         mode_manager.set_operation(OperationMode.manual)
         mode_manager.set_process(ProcessMode.idle)
+
+
 
     def stop_program(self):
         print("[PROGRAM_ENGINE] STOP PROGRAM")
@@ -282,11 +339,14 @@ class ProgramEngine:
         now = time.time()
 
         # Tick pressure model — must happen every tick regardless
-        dispensing_active = getattr(mat, "dispensing_active", False)
+        # dispensing_active = getattr(mat, "dispensing_active", False)
 
-        if ps.phase in (ProgramPhase.RUNNING, ProgramPhase.READY):
-            self._update_pressure_model(now, dispensing_active)
+        # if ps.phase in (ProgramPhase.RUNNING, ProgramPhase.READY):
+        #     self._update_pressure_model(now, dispensing_active)
         # self._update_pressure_model(now, dispensing_active)
+
+        # credits updated inside _maintain_pressure each tick
+
 
         # Step 1: Pressure maintenance — returns True if pot_air_in
         # is open or a command was just sent. Block everything else.
@@ -365,141 +425,140 @@ class ProgramEngine:
     # Returns True  → caller must return immediately (command in flight)
     # Returns False → caller may proceed with other commands
     # ──────────────────────────────────────────────────────────────
-    def _maintain_pressure(self, now: float, mat) -> bool:
+    # def _maintain_pressure(self, now: float, mat) -> bool:
 
-        from app.state.machine_state import machine_state_manager
+    #     from app.state.machine_state import machine_state_manager
 
-        machine = machine_state_manager.state
+    #     machine = machine_state_manager.state
 
-        # 🔴 If gap appears during pulse → force stop
-        if machine.gap == 1 and self._pressure_pulse_active:
-            from app.commands.helpers import create_and_queue_command
+    #     # 🔴 If gap appears during pulse → force stop
+    #     if machine.gap == 1 and self._pressure_pulse_active:
+    #         from app.commands.helpers import create_and_queue_command
 
-            print("[PRESSURE] Gap detected → stopping pressure immediately")
+    #         print("[PRESSURE] Gap detected → stopping pressure immediately")
 
-            create_and_queue_command(name="pot.pressurise_stop", payload={})
-            self._pressure_pulse_active = False
-            self._pressure_stop_sent = False
-            self._pressure_pulse_end_ts = now
+    #         create_and_queue_command(name="pot.pressurise_stop", payload={})
+    #         self._pressure_pulse_active = False
+    #         self._pressure_stop_sent = False
+    #         self._pressure_pulse_end_ts = now
 
-            return False
+    #         return False
 
-        # 🔴 THIS IS THE MISSING LINE
-        if machine.gap == 1:
-            return False
+    #     # 🔴 THIS IS THE MISSING LINE
+    #     if machine.gap == 1:
+    #         return False
         
 
-        if not hasattr(self, "_pressure_last_fire_ts"):
-            self._pressure_last_fire_ts = 0
+    #     if not hasattr(self, "_pressure_last_fire_ts"):
+    #         self._pressure_last_fire_ts = 0
 
-        if not hasattr(self, "_pressure_pulse_end_ts"):
-            self._pressure_pulse_end_ts = 0
-
-
-        from app.state.program_state import program_state
-        from app.state.program_state import ProgramPhase
-
-        # 🔴 ADD THIS
-        if program_state.phase not in (ProgramPhase.RUNNING, ProgramPhase.READY):
-            print("[PRESSURE] blocked during line priming")
-            return False
-
-        from app.commands.helpers import create_and_queue_command
-
-        p = self.profile
-
-        # ── Case 1: stop was sent last tick ──────────────────────
-        if self._pressure_stop_sent:
-            self._pressure_pulse_active = False
-            self._pressure_stop_sent = False
-            self._pressure_pulse_end_ts = now
-            print(
-                f"[PRESSURE_MODEL] Pulse closed — "
-                f"estimated={self._estimated_pressure_mpa:.4f} MPa"
-            )
-            return False
-
-        # ── Case 2: pulse is currently open ──────────────────────
-        if self._pressure_pulse_active:
-            pulse_elapsed = now - self._pressure_pulse_start_ts
-            stop = False
-            reason = ""
-
-            if self._estimated_pressure_mpa >= p.pressure_high_mpa:
-                stop = True
-                reason = f"reached {p.pressure_high_mpa} MPa"
-            elif pulse_elapsed >= p.pressure_top_up_max_s:
-                stop = True
-                reason = f"max pulse time {p.pressure_top_up_max_s}s reached"
-
-            if stop:
-                print(
-                    f"[PRESSURE_MODEL] Closing pot_air_in — {reason} "
-                    f"after {pulse_elapsed:.2f}s"
-                )
-                create_and_queue_command(name="pot.pressurise_stop", payload={})
-                self._pressure_stop_sent = True
-
-            return False   # pulse active — always block
-
-        # ── Case 3: idle — check if top-up needed ────────────────
-        if now - self._pressure_pulse_end_ts < p.pressure_top_up_cooldown_s:
-            return False
-
-        if self._estimated_pressure_mpa >= p.pressure_low_mpa:
-            return False
-
-        # ── NEW: 3 lines to kill the spam ────────────────────────
-        FALLBACK_COOLDOWN_S = 15.0
-        # if not hasattr(self, "_pressure_fallback_ts"):
-        #     self._pressure_fallback_ts = 0.0
-
-        pot_pressure = getattr(machine_state_manager.state, "pot_pressure", -1.0)
-        sensor_dead = pot_pressure is None or pot_pressure <= 0.0
-
-        if sensor_dead:
-            if now - self._pressure_fallback_ts < FALLBACK_COOLDOWN_S:
-                return False   # ← this is the only line that matters
-            self._pressure_fallback_ts = now
-            print(f"[PRESSURE_MODEL] Sensor invalid ({pot_pressure}) — fallback pulse (15s cooldown)")
+    #     if not hasattr(self, "_pressure_pulse_end_ts"):
+    #         self._pressure_pulse_end_ts = 0
 
 
+    #     from app.state.program_state import program_state
+    #     from app.state.program_state import ProgramPhase
 
-        # # debounce (VERY IMPORTANT)
-        # if now - self._pressure_last_fire_ts < 20.0:
-        #     print("[PRESSURE] debounce active — skipping")
-        # #     return False
-        # if not hasattr(self, "_pressure_last_fire_ts"):
-        #     self._pressure_last_fire_ts = now
-        # TOP_UP_INTERVAL = 30.0  # seconds
+    #     # 🔴 ADD THIS
+    #     if program_state.phase not in (ProgramPhase.RUNNING, ProgramPhase.READY):
+    #         print("[PRESSURE] blocked during line priming")
+    #         return False
 
-        # if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
-        #     return False
+    #     from app.commands.helpers import create_and_queue_command
 
-        # Pressure below low threshold — fire top-up
-        current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
-        charge_rate = self._charge_rate_mpa_per_s(current_kg)
-        deficit = p.pressure_high_mpa - self._estimated_pressure_mpa
-        est_needed_s = deficit / charge_rate if charge_rate > 0 else p.pressure_top_up_max_s
+    #     p = self.profile
 
-        print(
-            f"[PRESSURE_MODEL] Low — "
-            f"estimated={self._estimated_pressure_mpa:.4f} MPa "
-            f"< low={p.pressure_low_mpa} MPa — "
-            f"firing top-up (deficit={deficit:.4f} MPa, "
-            f"est {est_needed_s:.1f}s to reach {p.pressure_high_mpa} MPa)"
-        )
-        # create_and_queue_command(name="pot.pressurise", payload={})
+    #     # ── Case 1: stop was sent last tick ──────────────────────
+    #     if self._pressure_stop_sent:
+    #         self._pressure_pulse_active = False
+    #         self._pressure_stop_sent = False
+    #         self._pressure_pulse_end_ts = now
+    #         print(
+    #             f"[PRESSURE_MODEL] Pulse closed — "
+    #             f"estimated={self._estimated_pressure_mpa:.4f} MPa"
+    #         )
+    #         return False
+
+    #     # ── Case 2: pulse is currently open ──────────────────────
+    #     if self._pressure_pulse_active:
+    #         pulse_elapsed = now - self._pressure_pulse_start_ts
+    #         stop = False
+    #         reason = ""
+
+    #         if self._estimated_pressure_mpa >= p.pressure_high_mpa:
+    #             stop = True
+    #             reason = f"reached {p.pressure_high_mpa} MPa"
+    #         elif pulse_elapsed >= p.pressure_top_up_max_s:
+    #             stop = True
+    #             reason = f"max pulse time {p.pressure_top_up_max_s}s reached"
+
+    #         if stop:
+    #             print(
+    #                 f"[PRESSURE_MODEL] Closing pot_air_in — {reason} "
+    #                 f"after {pulse_elapsed:.2f}s"
+    #             )
+    #             create_and_queue_command(name="pot.pressurise_stop", payload={})
+    #             self._pressure_stop_sent = True
+
+    #         return False   # pulse active — always block
+
+    #     # ── Case 3: idle — check if top-up needed ────────────────
+    #     if now - self._pressure_pulse_end_ts < p.pressure_top_up_cooldown_s:
+    #         return False
+
+    #     if self._estimated_pressure_mpa >= p.pressure_low_mpa:
+    #         return False
+
+    #     # ── NEW: 3 lines to kill the spam ────────────────────────
+    #     FALLBACK_COOLDOWN_S = 15.0
+    #     # if not hasattr(self, "_pressure_fallback_ts"):
+    #     #     self._pressure_fallback_ts = 0.0
+
+    #     pot_pressure = getattr(machine_state_manager.state, "pot_pressure", -1.0)
+    #     sensor_dead = pot_pressure is None or pot_pressure <= 0.0
+
+    #     if sensor_dead:
+    #         if now - self._pressure_fallback_ts < FALLBACK_COOLDOWN_S:
+    #             return False   # ← this is the only line that matters
+    #         self._pressure_fallback_ts = now
+    #         print(f"[PRESSURE_MODEL] Sensor invalid ({pot_pressure}) — fallback pulse (15s cooldown)")
 
 
-        create_and_queue_command(name="pot.pressurise", payload={})
-        self._pressure_last_fire_ts = now
 
-        self._pressure_pulse_active = True
-        self._pressure_stop_sent = False
-        self._pressure_pulse_start_ts = now
-        return False
+    #     # # debounce (VERY IMPORTANT)
+    #     # if now - self._pressure_last_fire_ts < 20.0:
+    #     #     print("[PRESSURE] debounce active — skipping")
+    #     # #     return False
+    #     # if not hasattr(self, "_pressure_last_fire_ts"):
+    #     #     self._pressure_last_fire_ts = now
+    #     # TOP_UP_INTERVAL = 30.0  # seconds
 
+    #     # if now - self._pressure_last_fire_ts < TOP_UP_INTERVAL:
+    #     #     return False
+
+    #     # Pressure below low threshold — fire top-up
+    #     current_kg = mat.current_pot_kg or p.pressure_model_ref_kg
+    #     charge_rate = self._charge_rate_mpa_per_s(current_kg)
+    #     deficit = p.pressure_high_mpa - self._estimated_pressure_mpa
+    #     est_needed_s = deficit / charge_rate if charge_rate > 0 else p.pressure_top_up_max_s
+
+    #     print(
+    #         f"[PRESSURE_MODEL] Low — "
+    #         f"estimated={self._estimated_pressure_mpa:.4f} MPa "
+    #         f"< low={p.pressure_low_mpa} MPa — "
+    #         f"firing top-up (deficit={deficit:.4f} MPa, "
+    #         f"est {est_needed_s:.1f}s to reach {p.pressure_high_mpa} MPa)"
+    #     )
+    #     # create_and_queue_command(name="pot.pressurise", payload={})
+
+
+    #     create_and_queue_command(name="pot.pressurise", payload={})
+    #     self._pressure_last_fire_ts = now
+
+    #     self._pressure_pulse_active = True
+    #     self._pressure_stop_sent = False
+    #     self._pressure_pulse_start_ts = now
+    #     return False
     # def should_dispense(self, pass_id: int, machine) -> bool:
     #     # only when program is ready/running
     #     # if self.program_state.phase.value not in ("ready", "running"):
@@ -573,6 +632,61 @@ class ProgramEngine:
     #         print(f"[DISPENSE] weight={mat.current_pot_kg} → allowing")
 
     #     return True
+
+
+    def _maintain_pressure(self, now: float, mat) -> bool:
+        from app.state.machine_state import machine_state_manager
+        from app.commands.helpers import create_and_queue_command
+
+        machine = machine_state_manager.state
+
+        # Stop pulse immediately if gap opens
+        if machine.gap == 1 and self._pulse_active:
+            print("[PRESSURE] Gap during pulse — stopping")
+            create_and_queue_command(name="pot.pressurise_stop", payload={})
+            self._pulse_active = False
+            self._pulse_end_ts = now
+            return False
+
+        # Never repressurise during gap
+        if machine.gap == 1:
+            return False
+
+        self._update_credits(now)
+
+        # Pulse active — check stop conditions
+        if self._pulse_active:
+            pulse_elapsed = now - self._pulse_start_ts
+            if self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S:
+                reason = "full" if self._credits >= CREDIT_FULL else "max_time"
+                print(f"[PRESSURE] Stopping pulse — {reason} credits={self._credits:.3f}")
+                create_and_queue_command(name="pot.pressurise_stop", payload={})
+                self._pulse_active = False
+                self._pulse_end_ts = now
+                self._last_repressurise_ts = now
+            return True  # block dispense while pulsing
+
+        # Cooldown
+        if now - self._pulse_end_ts < PULSE_COOLDOWN_S:
+            return False
+
+        # Fire conditions
+        credit_low = self._credits < CREDIT_LOW_THRESHOLD
+        forced = (now - self._last_repressurise_ts) > FORCED_INTERVAL_S
+
+        if not credit_low and not forced:
+            return False
+
+        deficit = CREDIT_FULL - self._credits
+        pulse_s = max(MIN_PULSE_S, min(deficit / CREDIT_CHARGE_RATE, MAX_PULSE_S))
+        reason = "low" if credit_low else "forced"
+        print(f"[PRESSURE] Firing — reason={reason} credits={self._credits:.3f} pulse={pulse_s:.1f}s")
+
+        create_and_queue_command(name="pot.pressurise", payload={})
+        self._pulse_active = True
+        self._pulse_start_ts = now
+        return True
+
 
     def should_dispense(self, pass_id: int, machine) -> bool:
         from app.state.program_state import program_state
@@ -650,9 +764,13 @@ class ProgramEngine:
             print("[DISPENSE] skipped: lost gap before execution")
             return
 
-        if self._pressure_pulse_active:
-            print("[DISPENSE] pressure active — ignoring (gap priority)")
+        # if self._pressure_pulse_active:
+        #     print("[DISPENSE] pressure active — ignoring (gap priority)")
             # return    
+
+        if self._pulse_active:
+            print("[DISPENSE] pulse active — ignoring (gap priority)")
+            return
 
         if self.executor.is_busy():
             print(f"[DISPENSE] PASS {pid} SKIPPED (executor busy)")
@@ -747,6 +865,9 @@ class ProgramEngine:
 
         from app.state.machine_state import machine_state_manager
         machine = machine_state_manager.state
+
+        if machine.dispense_fired_for_gap:
+            self.on_dispense_complete()
 
         # 🔴 RESET FOR NEXT GAP
         machine.dispense_fired_for_gap = False

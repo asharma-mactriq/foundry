@@ -96,22 +96,33 @@ class StartupOrchestrator:
 
         print("[STARTUP_ORCH] Begin → PRESSURISE_POT (fill disabled)")
 
+    # def _adjust_pressure_after_prime(self, elapsed):
+    #     try:
+    #         import app.program.program_engine as program_module
+    #         if program_module.program_engine:
+    #             p = self.profile
+    #             drop = elapsed * p.pressure_dispense_bleed_mpa_per_s
+
+    #             program_module.program_engine._estimated_pressure_mpa = max(
+    #                 0.0,
+    #                 program_module.program_engine._estimated_pressure_mpa - drop
+    #             )
+
+    #             print(f"[STARTUP_ORCH] Adjusted pressure after prime (drop={drop:.4f})")
+
+    #     except Exception as e:
+    #         print(f"[STARTUP_ORCH] Pressure adjust failed: {e}")
+
     def _adjust_pressure_after_prime(self, elapsed):
         try:
             import app.program.program_engine as program_module
-            if program_module.program_engine:
-                p = self.profile
-                drop = elapsed * p.pressure_dispense_bleed_mpa_per_s
-
-                program_module.program_engine._estimated_pressure_mpa = max(
-                    0.0,
-                    program_module.program_engine._estimated_pressure_mpa - drop
-                )
-
-                print(f"[STARTUP_ORCH] Adjusted pressure after prime (drop={drop:.4f})")
-
+            eng = program_module.program_engine
+            if eng:
+                cost = elapsed * (1.0 / 9.0) * 3.0  # dispense bleeds ~3x faster than idle
+                eng._credits = max(0.0, eng._credits - cost)
+                print(f"[STARTUP_ORCH] Prime credit cost={cost:.3f} credits={eng._credits:.3f}")
         except Exception as e:
-            print(f"[STARTUP_ORCH] Pressure adjust failed: {e}")
+            print(f"[STARTUP_ORCH] Prime adjust failed: {e}")
 
     # ──────────────────────────────────────────────────────────────
     # Tick router
@@ -132,8 +143,8 @@ class StartupOrchestrator:
             else:
                 self._handle_pressurising(ms)
                 
-        elif ps.phase == ProgramPhase.LINE_PRIMING:
-            self._handle_line_priming(mat)
+        # elif ps.phase == ProgramPhase.LINE_PRIMING:
+        #     self._handle_line_priming(mat)
 
         elif ps.phase == ProgramPhase.READY:
 
@@ -269,7 +280,7 @@ class StartupOrchestrator:
 
         # STEP 3: COMPLETE
         if self._pressurise_stage == "COMPLETE":
-            print("[STARTUP] Pressurise complete → LINE_PRIMING")
+            print("[STARTUP] Pressurise complete → READY (no priming)")
            
 
             # 🔴 ADD THIS (CRITICAL FIX)
@@ -290,8 +301,13 @@ class StartupOrchestrator:
             except Exception as e:
                 print(f"[STARTUP_ORCH] Pressure seed failed: {e}")
 
-            program_state.on_pressurised()
-            print("[DEBUG] phase should now be LINE_PRIMING")
+            # program_state.on_pressurised()
+            # print("[DEBUG] phase should now be LINE_PRIMING")
+            # self._pressurise_stage = "DONE"
+
+            program_state.set_phase(ProgramPhase.READY, "startup_no_prime")
+            print("[STARTUP_ORCH] Skipping line priming → READY")
+
             self._pressurise_stage = "DONE"
 
 
@@ -343,173 +359,173 @@ class StartupOrchestrator:
     # ──────────────────────────────────────────────────────────────
     # PHASE 3: LINE PRIMING
     # ──────────────────────────────────────────────────────────────
-    def _handle_line_priming(self, mat):
-        weight_valid = (
-            mat.current_pot_kg is not None
-            and mat.current_pot_kg > 0
-        )
+    # def _handle_line_priming(self, mat):
+    #     weight_valid = (
+    #         mat.current_pot_kg is not None
+    #         and mat.current_pot_kg > 0
+    #     )
 
-        from app.commands.helpers import create_and_queue_command
-        p = self.profile
-        now = time.time()
+    #     from app.commands.helpers import create_and_queue_command
+    #     p = self.profile
+    #     now = time.time()
 
-        if not self._prime_cmd_sent:
-            print(
-                f"[STARTUP_ORCH] Opening dispense valve — priming line "
-                f"(profile={p.name}, min={p.line_prime_min_time_s}s, "
-                f"timeout={p.line_prime_timeout_s}s)"
-            )
-            create_and_queue_command(
-                name="line.prime_start",
-                payload={"timeout_ms": int(p.line_prime_timeout_s * 1000)}
-            )
-            self._prime_cmd_sent = True
-            self._prime_start_ts = now
-            self._prime_start_weight = mat.current_pot_kg or 0.0
-            self._rate_window_start_ts = now
-            self._rate_window_start_weight = mat.current_pot_kg
-            return
+    #     if not self._prime_cmd_sent:
+    #         print(
+    #             f"[STARTUP_ORCH] Opening dispense valve — priming line "
+    #             f"(profile={p.name}, min={p.line_prime_min_time_s}s, "
+    #             f"timeout={p.line_prime_timeout_s}s)"
+    #         )
+    #         create_and_queue_command(
+    #             name="line.prime_start",
+    #             payload={"timeout_ms": int(p.line_prime_timeout_s * 1000)}
+    #         )
+    #         self._prime_cmd_sent = True
+    #         self._prime_start_ts = now
+    #         self._prime_start_weight = mat.current_pot_kg or 0.0
+    #         self._rate_window_start_ts = now
+    #         self._rate_window_start_weight = mat.current_pot_kg
+    #         return
 
-        elapsed = now - self._prime_start_ts
+    #     elapsed = now - self._prime_start_ts
 
-        # Hard timeout
-        if elapsed > p.line_prime_timeout_s:
-            print("[STARTUP_ORCH] WARNING: Prime timeout — forcing completion")
-            if not self._prime_stop_sent:
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
-                program_state.set_phase(ProgramPhase.READY, "line_primed")
+    #     # Hard timeout
+    #     if elapsed > p.line_prime_timeout_s:
+    #         print("[STARTUP_ORCH] WARNING: Prime timeout — forcing completion")
+    #         if not self._prime_stop_sent:
+    #             create_and_queue_command(name="line.prime_stop", payload={})
+    #             self._prime_stop_sent = True
+    #             program_state.set_phase(ProgramPhase.READY, "line_primed")
 
-                self._adjust_pressure_after_prime(elapsed)
+    #             self._adjust_pressure_after_prime(elapsed)
 
-                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+    #             print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
-                material_state_manager.state.line_primed = True
+    #             material_state_manager.state.line_primed = True
 
-                self._prime_cmd_sent = False
-                self._prime_stop_sent = False
+    #             self._prime_cmd_sent = False
+    #             self._prime_stop_sent = False
 
-                # self._reseed_after_prime(elapsed)
-                # program_state.on_line_primed()
-                # material_state_manager.state.line_primed = True
-                # self._reseed_after_prime(elapsed)
-                # CHANGE 5: after prime, pressure has bled due to dispense
-                # being open for prime duration. Re-seed so model reflects
-                # that pressure has dropped by (elapsed × dispense_bleed_rate).
-            return
+    #             # self._reseed_after_prime(elapsed)
+    #             # program_state.on_line_primed()
+    #             # material_state_manager.state.line_primed = True
+    #             # self._reseed_after_prime(elapsed)
+    #             # CHANGE 5: after prime, pressure has bled due to dispense
+    #             # being open for prime duration. Re-seed so model reflects
+    #             # that pressure has dropped by (elapsed × dispense_bleed_rate).
+    #         return
 
-        current_kg = mat.current_pot_kg or 0.0
-        start_kg = self._prime_start_weight or current_kg
-        total_drain_kg = start_kg - current_kg
+    #     current_kg = mat.current_pot_kg or 0.0
+    #     start_kg = self._prime_start_weight or current_kg
+    #     total_drain_kg = start_kg - current_kg
 
-        if total_drain_kg >= p.line_prime_max_drain_kg:
-            print(
-                f"[STARTUP_ORCH] WARNING: Excess drain "
-                f"{total_drain_kg:.3f}kg (max={p.line_prime_max_drain_kg}kg)"
-            )
+    #     if total_drain_kg >= p.line_prime_max_drain_kg:
+    #         print(
+    #             f"[STARTUP_ORCH] WARNING: Excess drain "
+    #             f"{total_drain_kg:.3f}kg (max={p.line_prime_max_drain_kg}kg)"
+    #         )
 
-        if self.TEST_MODE:
-            if elapsed > 3:
-                print("[STARTUP_ORCH] TEST MODE forcing line primed")
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
+    #     if self.TEST_MODE:
+    #         if elapsed > 3:
+    #             print("[STARTUP_ORCH] TEST MODE forcing line primed")
+    #             create_and_queue_command(name="line.prime_stop", payload={})
+    #             self._prime_stop_sent = True
 
-                program_state.set_phase(ProgramPhase.READY, "line_primed")
+    #             program_state.set_phase(ProgramPhase.READY, "line_primed")
 
-                self._adjust_pressure_after_prime(elapsed)
-
-
-                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
-
-                material_state_manager.state.line_primed = True
-
-                self._prime_cmd_sent = False
-                self._prime_stop_sent = False
-
-                # self._reseed_after_prime(elapsed)
+    #             self._adjust_pressure_after_prime(elapsed)
 
 
-                # program_state.on_line_primed()
-                # material_state_manager.state.line_primed = True
-                # self._reseed_after_prime(elapsed)
-            return
+    #             print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
-        # Fixed duration prime — primary completion gate
-        if elapsed >= p.line_prime_min_time_s:
-            print(
-                f"[STARTUP_ORCH] Prime duration complete "
-                f"({elapsed:.1f}s) — closing valve"
-            )
-            if not self._prime_stop_sent:
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
+    #             material_state_manager.state.line_primed = True
 
-                program_state.set_phase(ProgramPhase.READY, "line_primed")
+    #             self._prime_cmd_sent = False
+    #             self._prime_stop_sent = False
 
-                self._adjust_pressure_after_prime(elapsed)
-
-                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
-
-                material_state_manager.state.line_primed = True
-
-                self._prime_cmd_sent = False
-                self._prime_stop_sent = False
-
-                # self._reseed_after_prime(elapsed)
+    #             # self._reseed_after_prime(elapsed)
 
 
-                # program_state.on_line_primed()
-                # material_state_manager.state.line_primed = True
-                # self._reseed_after_prime(elapsed)
-                # CHANGE 5 (same): re-seed pressure model after prime
-            return
+    #             # program_state.on_line_primed()
+    #             # material_state_manager.state.line_primed = True
+    #             # self._reseed_after_prime(elapsed)
+    #         return
 
-        # Weight invalid fallback
-        if not weight_valid:
-            if not self._prime_stop_sent and elapsed >= p.line_prime_min_time_s:
-                print("[STARTUP_ORCH] Weight invalid — assuming primed (time-based)")
-                create_and_queue_command(name="line.prime_stop", payload={})
-                self._prime_stop_sent = True
+    #     # Fixed duration prime — primary completion gate
+    #     if elapsed >= p.line_prime_min_time_s:
+    #         print(
+    #             f"[STARTUP_ORCH] Prime duration complete "
+    #             f"({elapsed:.1f}s) — closing valve"
+    #         )
+    #         if not self._prime_stop_sent:
+    #             create_and_queue_command(name="line.prime_stop", payload={})
+    #             self._prime_stop_sent = True
 
-                program_state.set_phase(ProgramPhase.READY, "line_primed")
+    #             program_state.set_phase(ProgramPhase.READY, "line_primed")
 
-                self._adjust_pressure_after_prime(elapsed)
+    #             self._adjust_pressure_after_prime(elapsed)
 
-                print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+    #             print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
 
-                material_state_manager.state.line_primed = True
+    #             material_state_manager.state.line_primed = True
 
-                self._prime_cmd_sent = False
-                self._prime_stop_sent = False
+    #             self._prime_cmd_sent = False
+    #             self._prime_stop_sent = False
 
-                # self._reseed_after_prime(elapsed)
+    #             # self._reseed_after_prime(elapsed)
 
-                # program_state.on_line_primed()
-                # material_state_manager.state.line_primed = True
-                # self._reseed_after_prime(elapsed)
-            return
 
-        # Rate window sampling (logging only)
-        rate_window_elapsed = now - self._rate_window_start_ts
-        if rate_window_elapsed < p.line_prime_rate_window_s or rate_window_elapsed <= 0:
-            return
+    #             # program_state.on_line_primed()
+    #             # material_state_manager.state.line_primed = True
+    #             # self._reseed_after_prime(elapsed)
+    #             # CHANGE 5 (same): re-seed pressure model after prime
+    #         return
 
-        weight_in_window = self._rate_window_start_weight - mat.current_pot_kg
-        current_rate = weight_in_window / rate_window_elapsed
+    #     # Weight invalid fallback
+    #     if not weight_valid:
+    #         if not self._prime_stop_sent and elapsed >= p.line_prime_min_time_s:
+    #             print("[STARTUP_ORCH] Weight invalid — assuming primed (time-based)")
+    #             create_and_queue_command(name="line.prime_stop", payload={})
+    #             self._prime_stop_sent = True
 
-        if current_rate > self._peak_drop_rate:
-            self._peak_drop_rate = current_rate
+    #             program_state.set_phase(ProgramPhase.READY, "line_primed")
 
-        self._rate_window_start_ts = now
-        self._rate_window_start_weight = mat.current_pot_kg
+    #             self._adjust_pressure_after_prime(elapsed)
 
-        print(
-            f"[STARTUP_ORCH] Line prime: elapsed={elapsed:.0f}s "
-            f"drained={total_drain_kg*1000:.0f}g "
-            f"rate={current_rate*1000:.1f}g/s "
-            f"peak={self._peak_drop_rate*1000:.1f}g/s "
-            f"crack_threshold={p.line_prime_nozzle_crack_rate_kg_s*1000:.1f}g/s"
-        )
+    #             print(f"[DEBUG] CURRENT PHASE AFTER PRIME: {program_state.phase}")
+
+    #             material_state_manager.state.line_primed = True
+
+    #             self._prime_cmd_sent = False
+    #             self._prime_stop_sent = False
+
+    #             # self._reseed_after_prime(elapsed)
+
+    #             # program_state.on_line_primed()
+    #             # material_state_manager.state.line_primed = True
+    #             # self._reseed_after_prime(elapsed)
+    #         return
+
+    #     # Rate window sampling (logging only)
+    #     rate_window_elapsed = now - self._rate_window_start_ts
+    #     if rate_window_elapsed < p.line_prime_rate_window_s or rate_window_elapsed <= 0:
+    #         return
+
+    #     weight_in_window = self._rate_window_start_weight - mat.current_pot_kg
+    #     current_rate = weight_in_window / rate_window_elapsed
+
+    #     if current_rate > self._peak_drop_rate:
+    #         self._peak_drop_rate = current_rate
+
+    #     self._rate_window_start_ts = now
+    #     self._rate_window_start_weight = mat.current_pot_kg
+
+    #     print(
+    #         f"[STARTUP_ORCH] Line prime: elapsed={elapsed:.0f}s "
+    #         f"drained={total_drain_kg*1000:.0f}g "
+    #         f"rate={current_rate*1000:.1f}g/s "
+    #         f"peak={self._peak_drop_rate*1000:.1f}g/s "
+    #         f"crack_threshold={p.line_prime_nozzle_crack_rate_kg_s*1000:.1f}g/s"
+    #     )
 
     # def _reseed_after_prime(self, prime_elapsed_s: float):
     #     """
