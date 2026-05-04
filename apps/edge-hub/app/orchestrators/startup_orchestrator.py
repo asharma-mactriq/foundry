@@ -301,6 +301,8 @@ class StartupOrchestrator:
             except Exception as e:
                 print(f"[STARTUP_ORCH] Pressure seed failed: {e}")
 
+
+            material_state_manager.state.line_primed = True
             # program_state.on_pressurised()
             # print("[DEBUG] phase should now be LINE_PRIMING")
             # self._pressurise_stage = "DONE"

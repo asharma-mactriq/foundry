@@ -237,7 +237,16 @@ class ProgramEngine:
     #     self._credits = max(0.0, min(CREDIT_FULL, self._credits))
 
 
-
+    def _update_credits(self, now: float):
+        elapsed = now - self._credits_last_ts
+        self._credits_last_ts = now
+        if elapsed <= 0:
+            return
+        if self._pulse_active:
+            self._credits += CREDIT_CHARGE_RATE * elapsed
+        else:
+            self._credits -= CREDIT_IDLE_BLEED * elapsed
+        self._credits = max(0.0, min(CREDIT_FULL, self._credits))
 
     def abort(self, reason: str = None):
         from app.modes.mode_manager import mode_manager
