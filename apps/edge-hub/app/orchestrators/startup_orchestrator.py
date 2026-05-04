@@ -310,6 +310,14 @@ class StartupOrchestrator:
             program_state.set_phase(ProgramPhase.READY, "startup_no_prime")
             print("[STARTUP_ORCH] Skipping line priming → READY")
 
+
+            # ADD THIS:
+            from app.modes.mode_manager import mode_manager
+            from app.modes.mode_types import OperationMode, ProcessMode
+            mode_manager.set_operation(OperationMode.auto)
+            mode_manager.set_process(ProcessMode.tracking)
+            print("[STARTUP_ORCH] Modes set → auto / tracking")
+
             self._pressurise_stage = "DONE"
 
 
