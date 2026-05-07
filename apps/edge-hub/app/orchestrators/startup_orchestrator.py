@@ -146,16 +146,28 @@ class StartupOrchestrator:
         # elif ps.phase == ProgramPhase.LINE_PRIMING:
         #     self._handle_line_priming(mat)
 
+        # elif ps.phase == ProgramPhase.READY:
+
+        #     print("[STARTUP_ORCH] READY — control returned to ProgramEngine")
+        #     from app.modes.mode_manager import mode_manager
+        #     from app.modes.mode_types import OperationMode, ProcessMode
+
+        #     mode_manager.set_operation(OperationMode.auto)
+        #     mode_manager.set_process(ProcessMode.tracking)
+
+        #     print("[STARTUP_ORCH] Modes set → auto / tracking")
+        #     return
+
+
         elif ps.phase == ProgramPhase.READY:
-
-            print("[STARTUP_ORCH] READY — control returned to ProgramEngine")
-            from app.modes.mode_manager import mode_manager
-            from app.modes.mode_types import OperationMode, ProcessMode
-
-            mode_manager.set_operation(OperationMode.auto)
-            mode_manager.set_process(ProcessMode.tracking)
-
-            print("[STARTUP_ORCH] Modes set → auto / tracking")
+            if self._started:
+                print("[STARTUP_ORCH] READY — control returned to ProgramEngine")
+                from app.modes.mode_manager import mode_manager
+                from app.modes.mode_types import OperationMode, ProcessMode
+                mode_manager.set_operation(OperationMode.auto)
+                mode_manager.set_process(ProcessMode.tracking)
+                print("[STARTUP_ORCH] Modes set → auto / tracking")
+                self._started = False   # ADD — prevents re-entry and log spam
             return
 
     # def _handle_pressurisation(self, mat):

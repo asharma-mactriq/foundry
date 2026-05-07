@@ -18,6 +18,8 @@ MAX_PULSE_S            = 15.0
 MIN_PULSE_S            = 5.0
 FORCED_INTERVAL_S      = 180.0
 PULSE_COOLDOWN_S       = 3.0
+MAX_DISPENSES_PER_CHARGE = 6
+MIN_SAFE_CREDITS = CREDIT_DISPENSE_COST * 1.3
 
 class ProgramEngine:
     """
@@ -86,6 +88,8 @@ class ProgramEngine:
         self._pulse_start_ts: float = 0.0
         self._pulse_end_ts: float = 0.0
         self._last_repressurise_ts: float = 0.0
+        self._pressure_last_fire_ts: float = 0.0   # ADD THIS
+
 
 
 
@@ -209,8 +213,10 @@ class ProgramEngine:
 
         # self.mid_refill_orchestrator.reset()
         self._reset_pressure_state()
+        # self._pressure_last_fire_ts = time.time()   # 🔴 ADD THIS
+
         # self._estimated_pressure_mpa = self.profile.pressure_high_mpa
-        self._pressure_last_fire_ts = time.time()   # 🔴 ADD THIS
+        # self._pressure_last_fire_ts = time.time()   # 🔴 ADD THIS
 
         from app.orchestrators.startup_orchestrator import startup_orchestrator
         startup_orchestrator.reset()
@@ -245,8 +251,8 @@ class ProgramEngine:
         elapsed = now - self._credits_last_ts
         self._credits_last_ts = now
 
-        if not self._pulse_active and elapsed > 5.0:
-            self._credits *= 0.95
+        # if not self._pulse_active and elapsed > 5.0:
+        #     self._credits *= 0.95
 
         if elapsed <= 0:
             return
@@ -326,6 +332,11 @@ class ProgramEngine:
         # if ps.phase == ProgramPhase.MID_REFILLING:
         #     self.mid_refill_orchestrator.process()
         #     return
+
+   # ← ADD HERE
+        if ps.phase in (ProgramPhase.PRESSURISING, ProgramPhase.LINE_PRIMING):
+            startup_orchestrator.process()
+            return
 
 
         gap = getattr(machine, "gap", 0)
@@ -797,8 +808,8 @@ class ProgramEngine:
             naturally_done = self._credits >= CREDIT_FULL or pulse_elapsed >= MAX_PULSE_S
             
             if gap_interrupt or naturally_done:
-                self._credits = min(self._credits, 0.92)
                 reason = "gap+min_time" if gap_interrupt else ("full" if self._credits >= CREDIT_FULL else "max_time")
+                self._credits = min(self._credits, 0.92)
                 print(f"[PRESSURE] Stopping — {reason} elapsed={pulse_elapsed:.1f}s credits={self._credits:.3f}")
                 create_and_queue_command(name="pot.pressurise_stop", payload={})
                 self._pulse_active = False
@@ -814,10 +825,12 @@ class ProgramEngine:
         if now - self._pulse_end_ts < PULSE_COOLDOWN_S:
             return False
 
-        if now - self._last_repressurise_ts > 300:  # 5 minutes
-            if not self._pulse_active:
-                print("[PRESSURE] periodic time reset")
-                self._force_repressurise(now)       
+        # if now - self._last_repressurise_ts > 300:  # 5 minutes
+        #     if not self._pulse_active:
+        #         print("[PRESSURE] periodic time reset")
+        #         self._force_repressurise(now)       
+        #         return False# ← ADD THIS
+
 
 
         # Fire conditions
@@ -970,7 +983,6 @@ class ProgramEngine:
         # if self._credits < CREDIT_DISPENSE_COST:
         #     print(f"[DISPENSE] blocked: low credits={self._credits:.3f}")
         #     return
-        MAX_DISPENSES_PER_CHARGE = 6
 
         if self._dispense_since_last_charge >= MAX_DISPENSES_PER_CHARGE:
             if not self._pulse_active:
@@ -978,7 +990,6 @@ class ProgramEngine:
                 self._force_repressurise(now)
             return
 
-        MIN_SAFE_CREDITS = CREDIT_DISPENSE_COST * 1.3
 
         if self._credits < MIN_SAFE_CREDITS:
             if not self._pulse_active:

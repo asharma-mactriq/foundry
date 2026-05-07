@@ -45,7 +45,7 @@ class ProgramState:
     last_event: str = None
     last_phase_reason: str = None  # ONLY written by set_phase — NEW FIELD
     last_event_ts: float = 0
-    _oldest_pass: int = field(default=1, init=False, repr=False)  # ← ADD THIS
+    _oldest_pass: int = field(default=0, init=False, repr=False)  # ← ADD THIS
 
     # ── Queries ───────────────────────────────────────────────────
     def is_active(self):
@@ -67,6 +67,7 @@ class ProgramState:
 
     def start_program(self):
         self.set_phase(ProgramPhase.STARTED, "operator_start")
+        # self._oldest_pass = 1   # first pass will be pid=1
         self.program_start_ts = clock.mono()
         self.current_pass = 0
         self._oldest_pass = 1        # ← ADD THIS
@@ -86,9 +87,16 @@ class ProgramState:
             self.set_phase(ProgramPhase.LOADED, "firmware_loaded")
 
     # begin startup.sequence
+    # def begin_startup(self):
+    #     if self.phase == ProgramPhase.LOADED:
+    #         self.set_phase(ProgramPhase.STARTUP, "startup_begin")
+
+# AFTER
     def begin_startup(self):
         if self.phase == ProgramPhase.LOADED:
             self.set_phase(ProgramPhase.STARTUP, "startup_begin")
+        else:
+            print(f"[PROGRAM_STATE] begin_startup ignored — phase={self.phase}")
 
     # startup.sequence ACK done → startup_orchestrator.begin() takes over
     def on_startup_complete(self):
