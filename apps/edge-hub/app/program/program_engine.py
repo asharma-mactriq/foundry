@@ -49,7 +49,7 @@ class ProgramEngine:
         self._reset_pressure_state()
         # self._estimated_pressure_mpa = self.profile.pressure_high_mpa
         self._ready_initialized = False
-        self._skip_n = 3
+        self._skip_n = 8
         self._last_weight = None
         self._window_drop_sum = 0.0
         self._pass_window = 0
@@ -89,7 +89,7 @@ class ProgramEngine:
         self._pulse_end_ts: float = 0.0
         self._last_repressurise_ts: float = 0.0
         self._pressure_last_fire_ts: float = 0.0   # ADD THIS
-
+        self._dispense_since_last_charge = 0
 
 
 
