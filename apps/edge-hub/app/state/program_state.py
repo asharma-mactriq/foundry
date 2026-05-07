@@ -20,6 +20,8 @@ class ProgramPhase(str, Enum):
     FAULT         = "fault"
 
 
+MAX_PASSES_RETAINED = 500  # keep only recent history
+
 @dataclass
 class PassInfo:
     pass_id: int
@@ -41,7 +43,9 @@ class ProgramState:
     total_actual_paint: float = 0
     program_start_ts: float = 0
     last_event: str = None
+    last_phase_reason: str = None  # ONLY written by set_phase — NEW FIELD
     last_event_ts: float = 0
+    _oldest_pass: int = field(default=1, init=False, repr=False)  # ← ADD THIS
 
     # ── Queries ───────────────────────────────────────────────────
     def is_active(self):
@@ -58,13 +62,14 @@ class ProgramState:
     def set_phase(self, phase: ProgramPhase, reason: str = None):
         print(f"[PROGRAM_STATE] {self.phase} → {phase} ({reason})")
         self.phase = phase
-        self.last_event = reason
+        self.last_phase_reason = reason
         self.last_event_ts = clock.mono()
 
     def start_program(self):
         self.set_phase(ProgramPhase.STARTED, "operator_start")
         self.program_start_ts = clock.mono()
         self.current_pass = 0
+        self._oldest_pass = 1        # ← ADD THIS
         self.passes = {}
         self.total_actual_paint = 0
         self.total_expected_paint = 0
@@ -137,22 +142,33 @@ class ProgramState:
         self.last_event = "pass_exit"
         self.last_event_ts = clock.mono()
 
+        # O(1) pruning — no min() scan
+        if len(self.passes) > MAX_PASSES_RETAINED:
+            if self._oldest_pass in self.passes:
+                del self.passes[self._oldest_pass]
+            self._oldest_pass += 1
+
     # ── Serialise ─────────────────────────────────────────────────
-    def serialize(self):
+    def serialize(self, recent_n: int = 50):
+        # recent_pids = sorted(self.passes.keys())[-recent_n:]
+        recent_pids = list(self.passes.keys())[-recent_n:]
+
+
         return {
             "phase": self.phase.value,
             "current_pass": self.current_pass,
             "passes": {
                 pid: {
-                    "enter_ts":          p.enter_ts,
-                    "stable_ts":         p.stable_ts,
-                    "exit_ts":           p.exit_ts,
-                    "expected_paint":    p.expected_paint,
-                    "actual_paint":      p.actual_paint,
-                    "thickness_estimate":p.thickness_estimate,
-                    "status":            p.status,
+                    "enter_ts":          self.passes[pid].enter_ts,
+                    "stable_ts":         self.passes[pid].stable_ts,
+                    "exit_ts":           self.passes[pid].exit_ts,
+                    "expected_paint":    self.passes[pid].expected_paint,
+                    "actual_paint":      self.passes[pid].actual_paint,
+                    "thickness_estimate":self.passes[pid].thickness_estimate,
+                    "status":            self.passes[pid].status,
                 }
-                for pid, p in self.passes.items()
+                # for pid, p in self.passes.items()
+                for pid in recent_pids
             },
             "total_expected_paint": self.total_expected_paint,
             "total_actual_paint":   self.total_actual_paint,
