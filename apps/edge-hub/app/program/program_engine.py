@@ -49,7 +49,7 @@ class ProgramEngine:
         self._reset_pressure_state()
         # self._estimated_pressure_mpa = self.profile.pressure_high_mpa
         self._ready_initialized = False
-        self._skip_n = 8
+        self._skip_n = 6
         self._last_weight = None
         self._window_drop_sum = 0.0
         self._pass_window = 0
