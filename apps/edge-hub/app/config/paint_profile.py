@@ -33,7 +33,7 @@ class PaintProfile:
     line_prime_line_volume_kg: float = 0.25
 
     # ── Dispense ──────────────────────────────────────────────────
-    dispense_open_ms: int = 4000
+    dispense_open_ms: int = 2500
     nozzle_open_lag_ms: int = 50
     nozzle_close_lag_ms: int = 50
     inter_plate_maintain_open_ms: int = 0
@@ -138,7 +138,7 @@ THICK_PASTE_PROFILE = PaintProfile(
     pot_fill_target_kg=3.0,
     pot_fill_total_timeout_s=120.0,
     pressurise_open_s=9.0,
-    dispense_open_ms=4000,
+    dispense_open_ms=2500,
     nozzle_open_lag_ms=500,
     nozzle_close_lag_ms=300,
     mid_refill_threshold_kg=1.5,
@@ -162,7 +162,7 @@ MEDIUM_PROFILE = PaintProfile(
     pressurise_open_s=9.0,
     line_prime_min_time_s=1.0,
     line_prime_timeout_s=60.0,
-    dispense_open_ms=3500,
+    dispense_open_ms=2500,
     nozzle_open_lag_ms=250,
     nozzle_close_lag_ms=150,
     mid_refill_threshold_kg=1.0,
@@ -185,7 +185,7 @@ THIN_PROFILE = PaintProfile(
     line_prime_min_time_s=1.0,
     line_prime_timeout_s=30.0,
     line_prime_max_drain_kg=1.0,
-    dispense_open_ms=2000,
+    dispense_open_ms=2500,
     nozzle_open_lag_ms=150,
     nozzle_close_lag_ms=100,
     mid_refill_threshold_kg=0.8,

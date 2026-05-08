@@ -14,15 +14,15 @@ CREDIT_DISPENSE_COST = 0.10        # per 1000ms open
 CREDIT_IDLE_BLEED    = 1.0 / 180.0 # drain to zero in 3 min idle
 CREDIT_CHARGE_RATE   = 1.0 / 9.0   # full charge in 9s
 CREDIT_LOW_THRESHOLD = 0.35
-MIN_SAFE_CREDITS     = 0.15        # skip dispense below this
+MIN_SAFE_CREDITS     = 0.05        # skip dispense below this
 MAX_PULSE_S          = 12.0
 PULSE_COOLDOWN_S     = 30.0
 FORCED_INTERVAL_S    = 300.0
 
 # ── Gap classifier constants ───────────────────────────────────────────────────
-REST_DWELL_BOOTSTRAP_S = 2.5   # treat gaps held > this as rest until learned
+REST_DWELL_BOOTSTRAP_S = 1   # treat gaps held > this as rest until learned
 GAP_HISTORY_SIZE       = 20    # rolling window of movement gap durations
-REST_RATIO             = 3.0   # rest threshold = median_movement * REST_RATIO
+REST_RATIO             = 1.35   # rest threshold = median_movement * REST_RATIO
 
 
 class ProgramEngine:
