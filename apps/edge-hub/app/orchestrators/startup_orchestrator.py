@@ -119,6 +119,9 @@ class StartupOrchestrator:
             eng = program_module.program_engine
             if eng:
                 cost = elapsed * (1.0 / 9.0) * 3.0  # dispense bleeds ~3x faster than idle
+                charge_rate = 1.0 / max(self.profile.pressure_charge_time_s, 1.0)
+                dispense_ratio = self.profile.pressure_dispense_bleed_mpa_per_s / max(self.profile.pressure_idle_bleed_mpa_per_s, 1e-6)
+                cost = elapsed * charge_rate * dispense_ratio
                 eng._credits = max(0.0, eng._credits - cost)
                 print(f"[STARTUP_ORCH] Prime credit cost={cost:.3f} credits={eng._credits:.3f}")
         except Exception as e:

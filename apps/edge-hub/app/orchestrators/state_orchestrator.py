@@ -37,38 +37,6 @@ class StateOrchestrator:
         ms = machine_state_manager.apply_telemetry(telemetry)
         ps = program_state
 
-        # 🔴 ALWAYS run program engine first
-        if program_module.program_engine:
-            program_module.program_engine.on_event(ms, ps)
-
-        # if ms.is_dispense_window():
-        #     pid = ps.current_pass
-
-        #     print(
-        #         f"[REALTIME DEBUG] "
-        #         f"pid={pid} "
-        #         f"phase={ps.phase} "
-        #         f"stable={ms.plate_stable} "
-        #         f"gap={ms.gap} "
-        #         f"fired={ms.dispense_fired_for_gap}"
-        #     )
-
-        #     allowed = program_module.program_engine.should_dispense(pid, ms)
-
-        #     print(f"[REALTIME DECISION] allowed={allowed}")
-
-        #     if allowed:
-        #         print("[REALTIME] FIRING DISPENSE")
-
-        #         open_ms = program_module.program_engine.get_dispense_plan(pid)
-
-        #         self.executor.send_command({
-        #             "name": "dispense.open",
-        #             "payload": {"open_ms": open_ms}
-        #         })
-
-        #         ms.dispense_fired_for_gap = True
-
         # ── Telemetry watchdog ────────────────────────────────────
         if ms.last_update_ts is not None:
             if (now - ms.last_update_ts) > 3.0:
@@ -87,16 +55,11 @@ class StateOrchestrator:
         if system_state.phase != SystemPhase.READY:
             return ms, ps
 
+        if program_module.program_engine:
+            program_module.program_engine.on_event(ms, ps)
+
         # 4. Rules (only in RUNNING or READY — rule engine gates itself)
         self._evaluate_rules(telemetry, ms, ps, mat)
-
-        # 5. Program not active — nothing else to do
-        # if not ps.is_active():
-        #     return ms, ps
-        
-
-
-        # startup_orchestrator.process()
 
         if startup_orchestrator.is_started():
             startup_orchestrator.process()
@@ -106,23 +69,6 @@ class StateOrchestrator:
 
         if not ps.is_active():
             return ms, ps
-
-        # 6. Gap/plate detection (only meaningful in RUNNING)
-        # if ps.phase in (ProgramPhase.READY, ProgramPhase.RUNNING):
-        #     self._process_gap_events(ms, ps, now)
-
-        # return ms, ps
-
-        # 6. Gap/plate detection
-        if ps.phase in (ProgramPhase.READY, ProgramPhase.RUNNING):
-            self._process_gap_events(ms, ps, now)
-
-        # 7. Program Engine (dispense logic)
-
-        # if program_engine:
-        #     program_engine.on_event(ms, ps)
-
-        # pressure_orchestrator.process()
 
         return ms, ps
 
